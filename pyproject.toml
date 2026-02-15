@@ -1,0 +1,12 @@
+[project]
+name = "mediapipe_vtube_studio"
+version = "0.1.0"
+description = "Live2D avatar control via webcam using MediaPipe and VTube Studio API"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "mediapipe",
+    "opencv-python",
+    "websockets",
+    "requests",
+]

@@ -167,16 +167,6 @@ async def injection_stage(
         success = await client.inject_parameters(parameters, face_found=face_found)
         if not success:
             logger.warning("Failed to inject parameters to VTube Studio")
-            # Try to reconnect if connection was lost
-            if not client.is_connected:
-                logger.info("Attempting to reconnect to VTube Studio...")
-                if await client.reconnect():
-                    # Retry injection after reconnection
-                    retry_success = await client.inject_parameters(parameters, face_found=face_found)
-                    if not retry_success:
-                        logger.error("Failed to inject parameters after reconnection")
-                else:
-                    logger.error("Failed to reconnect to VTube Studio")
 
 
 async def async_generator_wrapper(sync_gen):

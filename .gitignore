@@ -2,4 +2,5 @@ mediapipe-docs
 vitube-studio-docs
 live2d-docs
 face_landmarker.task
+vtube_auth_token.json
 __pycache__

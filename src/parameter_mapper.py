@@ -21,7 +21,33 @@ from src.eye_calibrator import calibrator, _calculate_eye_openness
 
 # Set of standard VTube Studio input parameters that should not be created via API
 # These parameters are built-in and always available in VTube Studio
-STANDARD_VTS_PARAMS: Set[str] = {"MouthSmile", "MouthOpen", "EyeOpenLeft", "EyeOpenRight", "FaceAngleX", "FaceAngleY", "FaceAngleZ", "Brows"}
+STANDARD_VTS_PARAMS: Set[str] = {
+    "FacePositionX",
+    "FacePositionY",
+    "FacePositionZ",
+    "EyeOpenLeft",
+    "EyeOpenRight",
+    "FaceAngleX",
+    "FaceAngleY",
+    "FaceAngleZ",
+    "MouthSmile",
+    "MouthOpen",
+    "MousePositionX",
+    "MousePositionY",
+    "TongueOut",
+    "EyeLeftX",
+    "EyeLeftY",
+    "EyeRightX",
+    "EyeRightY",
+    "CheekPuff",
+    "BrowLeftY",
+    "BrowRightY",
+    "MouthX",
+    "FaceAngry",
+    "Brows"
+}
+
+CUSTOM_PARAM_NAMES: Set[str] = set()
 
 # Mapping from MediaPipe blendshape names to VTube Studio parameter names
 # This is the central configuration for all parameter mappings

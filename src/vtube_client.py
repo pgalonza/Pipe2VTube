@@ -11,6 +11,8 @@ import os
 from typing import Dict, Optional
 import uuid
 
+from src.optimized_parameter_mapper import optimized_mapper
+
 logger = logging.getLogger(__name__)
 
 
@@ -314,12 +316,36 @@ class VTubeStudioClient:
                             continue  # Retry after reconnection
                 return False
         
+        
         return False  # All retry attempts failed
+
+    async def flush_remaining_parameters(self) -> bool:
+        """
+        Flush any remaining parameters in the optimized mapper batch queue.
+        
+        Returns:
+            True if flush successful or no parameters to flush, False on error.
+        """
+        # Get any remaining parameters from the optimized mapper
+        remaining_params = optimized_mapper.flush_batch()
+        
+        # If there are remaining parameters, inject them
+        if remaining_params:
+            logger.info(f"Flushing {len(remaining_params)} remaining parameters")
+            return await self.inject_parameters(remaining_params, face_found=True)
+        
+        return True
 
     async def close(self):
         """
         Close the WebSocket connection.
         """
+        # Flush any remaining parameters before closing
+        try:
+            await self.flush_remaining_parameters()
+        except Exception as e:
+            logger.warning(f"Error flushing remaining parameters: {e}")
+        
         if self.websocket:
             try:
                 await self.websocket.close()
@@ -329,7 +355,6 @@ class VTubeStudioClient:
         self.websocket = None
         self.is_connected = False
         self.is_authenticated = False
-
     async def reconnect(self) -> bool:
         """
         Attempt to reconnect to VTube Studio with exponential backoff.

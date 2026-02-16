@@ -16,6 +16,7 @@ import cv2
 from src.camera import generate_frames
 from src.facetracker import FaceTracker
 from src.vtube_client import VTubeStudioClient
+from src.optimized_parameter_mapper import optimized_mapper
 
 logger = logging.getLogger(__name__)
 
@@ -93,14 +94,16 @@ async def mapping_stage(
                 "display_frame": display_frame
             }
         else:
-            # Extract parameters for VTube Studio
-            parameters = {}
+            # Extract parameters for VTube Studio using optimized mapper
+            # Prepare MediaPipe data for the optimized mapper
+            mediapipe_data = {
+                "landmarks": face_data.get("landmarks"),
+                "blendshapes": face_data.get("blendshapes"),
+                "pose": face_data.get("pose")
+            }
             
-            # Map blendshapes from the transformed data
-            if "vtube_params" in face_data:
-                # Use the already transformed parameters from parameter_mapper
-                vtube_params = face_data["vtube_params"]
-                parameters.update(vtube_params)
+            # Transform and optimize parameters
+            parameters = optimized_mapper.transform_and_optimize(mediapipe_data)
             
             yield {
                 "parameters": parameters,

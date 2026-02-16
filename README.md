@@ -60,8 +60,8 @@ uv run python -m src.main
 
 This project was developed using:
 
-- Gigacode
-- Source Craft Assistant (limited usage due to quota restrictions)
+- Gigacode (logic)
+- Source Craft Assistant (optimization and refactoring)
 
 ## License
 

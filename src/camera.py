@@ -5,7 +5,6 @@ Module for capturing video from webcam with preprocessing.
 import cv2
 from typing import Generator, Tuple, Optional
 import logging
-import time
 
 logger = logging.getLogger(__name__)
 

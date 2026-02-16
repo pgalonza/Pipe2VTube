@@ -1,20 +1,23 @@
 """
-This module is the single source of truth for eye calibration logic. All helper functions have been moved from calibration_helper.py.
+This module is the single source of truth for eye calibration logic.
+All helper functions have been moved from calibration_helper.py.
 """
 
-from typing import Dict, Any
+from typing import Dict
 import logging
 import numpy as np
 import time
-import cv2
-import mediapipe as mp
-
+import asyncio
+import json
+import os
 logger = logging.getLogger(__name__)
+
 
 class EyeCalibrator:
     """
     Class for automatic calibration of eye opening thresholds.
-    Collects data on the distance between eyelids in open and closed eye states.
+    Collects data on the distance between eyelids in open and closed
+    eye states.
     """
     def __init__(self):
         self.is_calibrating = False
@@ -25,6 +28,7 @@ class EyeCalibrator:
         self.min_distances_left = []
         self.min_distances_right = []
         self.is_open_phase = True  # True: собираем max, False: собираем min
+        self._load_calibration_data()
 
     def start_calibration(self):
         """Start the calibration process"""
@@ -52,11 +56,13 @@ class EyeCalibrator:
             return False
 
         current_time = time.time()
-        elapsed = current_time - self.calibration_start_time
+        elapsed = current_time - (self.calibration_start_time or 0)
 
         # Determine distances
-        dist_left = _calculate_eye_openness(landmarks, (386, 374))  # MediaPipe right eye -> model left eye
-        dist_right = _calculate_eye_openness(landmarks, (159, 145))  # MediaPipe left eye -> model right eye
+        # MediaPipe right eye -> model left eye
+        dist_left = _calculate_eye_openness(landmarks, (386, 374))
+        # MediaPipe left eye -> model right eye
+        dist_right = _calculate_eye_openness(landmarks, (159, 145))
 
         # Always add data if calibration is active
         self.open_distances_left.append(dist_left)
@@ -67,7 +73,8 @@ class EyeCalibrator:
             self.min_distances_right.append(dist_right)
 
         # Check if calibration is complete by timer
-        if elapsed >= self.calibration_duration:
+        if (elapsed >= self.calibration_duration and
+                self.calibration_start_time is not None):
             if self.is_open_phase:
                 # Switch to closed eyes phase
                 self.is_open_phase = False
@@ -99,11 +106,42 @@ class EyeCalibrator:
         self.EYE_OPEN_CALIBRATED_MAX_RIGHT = max_right
         self.EYE_OPEN_CALIBRATED_MIN_RIGHT = min_right
 
-        logger.info(f"Calibration completed:")
-        logger.info(f"  Left eye (model): MAX={self.EYE_OPEN_CALIBRATED_MAX_LEFT:.4f}, MIN={self.EYE_OPEN_CALIBRATED_MIN_LEFT:.4f}")
-        logger.info(f"  Right eye (model): MAX={self.EYE_OPEN_CALIBRATED_MAX_RIGHT:.4f}, MIN={self.EYE_OPEN_CALIBRATED_MIN_RIGHT:.4f}")
+        logger.info("Calibration completed")
+        logger.info("  Left eye: MAX=%.4f, MIN=%.4f" %
+            (self.EYE_OPEN_CALIBRATED_MAX_LEFT, self.EYE_OPEN_CALIBRATED_MIN_LEFT))
+        logger.info("  Right eye: MAX=%.4f, MIN=%.4f" %
+            (self.EYE_OPEN_CALIBRATED_MAX_RIGHT, self.EYE_OPEN_CALIBRATED_MIN_RIGHT))
 
         self.is_calibrating = False
+
+    def _load_calibration_data(self):
+        """Load calibration data from file if it exists."""
+        try:
+            if os.path.exists("eye_calibration.json"):
+                with open("eye_calibration.json", "r") as f:
+                    data = json.load(f)
+                    self.EYE_OPEN_CALIBRATED_MAX_LEFT = data["left_max"]
+                    self.EYE_OPEN_CALIBRATED_MIN_LEFT = data["left_min"]
+                    self.EYE_OPEN_CALIBRATED_MAX_RIGHT = data["right_max"]
+                    self.EYE_OPEN_CALIBRATED_MIN_RIGHT = data["right_min"]
+                    logger.info("Loaded previous calibration data from file")
+        except Exception as e:
+            logger.warning(f"Could not load calibration data: {e}")
+
+    def _save_calibration_data(self):
+        """Save calibration data to file."""
+        try:
+            data = {
+                "left_max": float(self.EYE_OPEN_CALIBRATED_MAX_LEFT),
+                "left_min": float(self.EYE_OPEN_CALIBRATED_MIN_LEFT),
+                "right_max": float(self.EYE_OPEN_CALIBRATED_MAX_RIGHT),
+                "right_min": float(self.EYE_OPEN_CALIBRATED_MIN_RIGHT)
+            }
+            with open("eye_calibration.json", "w") as f:
+                json.dump(data, f)
+            logger.info("Saved calibration data to file")
+        except Exception as e:
+            logger.warning(f"Could not save calibration data: {e}")
 
     def get_thresholds(self) -> Dict[str, float]:
         """Get current calibration thresholds.
@@ -116,10 +154,10 @@ class EyeCalibrator:
             try:
                 if hasattr(self, 'EYE_OPEN_CALIBRATED_MAX_LEFT'):
                     return {
-                        'left_max': self.EYE_OPEN_CALIBRATED_MAX_LEFT,
-                        'left_min': self.EYE_OPEN_CALIBRATED_MIN_LEFT,
-                        'right_max': self.EYE_OPEN_CALIBRATED_MAX_RIGHT,
-                        'right_min': self.EYE_OPEN_CALIBRATED_MIN_RIGHT
+                        'left_max': float(self.EYE_OPEN_CALIBRATED_MAX_LEFT),
+                        'left_min': float(self.EYE_OPEN_CALIBRATED_MIN_LEFT),
+                        'right_max': float(self.EYE_OPEN_CALIBRATED_MAX_RIGHT),
+                        'right_min': float(self.EYE_OPEN_CALIBRATED_MIN_RIGHT)
                     }
                 else:
                     logger.warning("Calibration values not initialized, using default values.")
@@ -137,7 +175,12 @@ class EyeCalibrator:
                     'right_max': 0.038,
                     'right_min': 0.012
                 }
-        return None
+        return {
+            'left_max': 0.038,
+            'left_min': 0.012,
+            'right_max': 0.038,
+            'right_min': 0.012
+        }
 
 
 calibrator = EyeCalibrator()
@@ -185,22 +228,22 @@ class EyeCalibrationHelper:
     """
     Helper class for managing the eye calibration process with user interaction.
     """
-    def __init__(self, calibrator: EyeCalibrator = None):
+    def __init__(self, calibrator=None):
         """
         Initialize the calibration helper.
         
         Args:
-            calibrator: Instance of EyeCalibrator to use for calibration. 
+            calibrator: Instance of EyeCalibrator to use for calibration.
                        If None, uses the global default instance from eye_calibrator module.
         """
         if calibrator is None:
-            calibrator = calibrator  # Use the global default instance
+            calibrator = globals()['calibrator']  # Use the global default instance
         self.calibrator = calibrator
         # We need a tracker instance to process frames during calibration
         from src.facetracker import FaceTracker
         self.tracker = FaceTracker()
 
-    def run_calibration(self) -> bool:
+    async def run_calibration(self) -> bool:
         """
         Run the complete eye calibration process with user guidance.
         The camera is activated only during the calibration process.
@@ -210,37 +253,38 @@ class EyeCalibrationHelper:
         """
         try:
             # Initial prompt
-            logger.info("Press Enter to start eye calibration...")
-            input()
-
+            logger.info("Starting automatic eye calibration...")
             # Start camera for calibration
             from src.camera import generate_frames
             frame_generator = generate_frames(device_id=0, width=640, height=480, fps=30)
-
+            
             # Open eyes phase
-            logger.info("Eye calibration: open your eyes. Press Enter when ready")
+            logger.info("Keep your eyes OPEN for automatic calibration...")
             input()
-            logger.info("Collecting data for open eyes...")
             self.calibrator.start_calibration()
             
             # Capture frames for 3 seconds for open eyes
             start_time = time.time()
             while time.time() - start_time < 3.0:
-                success, frame = next(frame_generator, (False, None))
-                if success and frame is not None:
-                    # Extract landmarks from frame
-                    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
-                    detection_result = self.tracker.detector.detect(image)
-                    if detection_result.face_landmarks:
-                        landmarks = detection_result.face_landmarks[0]
-                        self.calibrator.update(landmarks)
-                time.sleep(1/30)  # Simulate FPS
+                try:
+                    success, frame = next(frame_generator, (False, None))
+                    if success and frame is not None:
+                        # Extract landmarks from frame
+                        import cv2
+                        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                        import mediapipe as mp
+                        image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
+                        detection_result = self.tracker.detector.detect(image)
+                        if detection_result.face_landmarks:
+                            landmarks = detection_result.face_landmarks[0]
+                            self.calibrator.update(landmarks)
+                    await asyncio.sleep(1/30)  # Simulate FPS
+                except StopIteration:
+                    break
             
             # Closed eyes phase
-            logger.info("Now close your eyes. Press Enter when ready")
+            logger.info("Keep your eyes CLOSED for automatic calibration...")
             input()
-            logger.info("Collecting data for closed eyes...")
             # Switch to closed eyes phase
             self.calibrator.is_open_phase = False
             self.calibrator.calibration_start_time = time.time()
@@ -248,19 +292,24 @@ class EyeCalibrationHelper:
             # Capture frames for 3 seconds for closed eyes
             start_time = time.time()
             while time.time() - start_time < 3.0:
-                success, frame = next(frame_generator, (False, None))
-                if success and frame is not None:
-                    # Extract landmarks from frame
-                    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
-                    detection_result = self.tracker.detector.detect(image)
-                    if detection_result.face_landmarks:
-                        landmarks = detection_result.face_landmarks[0]
-                        self.calibrator.update(landmarks)
-                time.sleep(1/30)  # Simulate FPS
-
+                try:
+                    success, frame = next(frame_generator, (False, None))
+                    if success and frame is not None:
+                        # Extract landmarks from frame
+                        import cv2
+                        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                        import mediapipe as mp
+                        image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
+                        detection_result = self.tracker.detector.detect(image)
+                        if detection_result.face_landmarks:
+                            landmarks = detection_result.face_landmarks[0]
+                            self.calibrator.update(landmarks)
+                    await asyncio.sleep(1/30)  # Simulate FPS
+                except StopIteration:
+                    break
+            
             # Finalize calibration
-            logger.info("Calibration completed successfully!")
+            logger.info("Eye calibration completed successfully!")
             
             return True
             

@@ -31,6 +31,10 @@ class VTubeStudioClient:
         self.auth_token: Optional[str] = None
         self.plugin_name = "MediaPipeLive2D"
         self.plugin_developer = "User"
+        self.host = host
+        self.port = port
+        self.is_connected = False
+        self.is_authenticated = False
 
     async def connect(self) -> bool:
         """
@@ -41,10 +45,13 @@ class VTubeStudioClient:
         """
         try:
             self.websocket = await websockets.connect(self.uri)
+            self.is_connected = True
             logger.info("Connected to VTube Studio at %s", self.uri)
             return True
         except Exception as e:
             logger.error("Failed to connect to VTube Studio: %s", e)
+            self.is_connected = False
+            self.is_authenticated = False
             return False
 
     async def authenticate(self) -> bool:
@@ -60,7 +67,9 @@ class VTubeStudioClient:
 
         # Try to use existing token first
         if self.auth_token:
-            return await self._send_authentication_request(self.auth_token)
+            result = await self._send_authentication_request(self.auth_token)
+            self.is_authenticated = result
+            return result
 
         # Request new token
         request = {
@@ -83,14 +92,18 @@ class VTubeStudioClient:
                 self.auth_token = response_data["data"]["authenticationToken"]
                 logger.info("Received authentication token")
                 # Now authenticate with the token
-                return await self._send_authentication_request(self.auth_token)
+                result = await self._send_authentication_request(self.auth_token)
+                self.is_authenticated = result
+                return result
             else:
                 error = response_data.get("data", {}).get("message", "Unknown error")
                 logger.error("Failed to get authentication token: %s", error)
+                self.is_authenticated = False
                 return False
 
         except Exception as e:
             logger.error("Authentication error: %s", e)
+            self.is_authenticated = False
             return False
 
     async def _send_authentication_request(self, token: str) -> bool:
@@ -197,7 +210,7 @@ class VTubeStudioClient:
         Returns:
             True if injection successful.
         """
-        if not self.websocket:
+        if not self.websocket or not self.is_connected:
             logger.error("Not connected to VTube Studio")
             return False
             
@@ -232,10 +245,23 @@ class VTubeStudioClient:
             if response_data.get("messageType") == "APIError":
                 error_message = response_data.get("data", {}).get("message", "Unknown error")
                 logger.error("API Error when injecting parameters: %s", error_message)
+                # Check if it's a connection error that requires reconnection
+                if "connection" in error_message.lower() or "disconnected" in error_message.lower():
+                    self.is_connected = False
+                    self.is_authenticated = False
                 return False
             return True
+        except websockets.exceptions.ConnectionClosed:
+            logger.error("Connection to VTube Studio was closed")
+            self.is_connected = False
+            self.is_authenticated = False
+            return False
         except Exception as e:
             logger.error("Failed to inject parameters: %s", e)
+            # Check if it's a connection error
+            if "connection" in str(e).lower() or "disconnected" in str(e).lower():
+                self.is_connected = False
+                self.is_authenticated = False
             return False
 
     async def close(self):
@@ -248,3 +274,36 @@ class VTubeStudioClient:
                 logger.info("VTube Studio connection closed")
             except Exception as e:
                 logger.error("Error while closing VTube Studio connection: %s", e)
+        self.websocket = None
+        self.is_connected = False
+        self.is_authenticated = False
+
+    async def reconnect(self) -> bool:
+        """
+        Attempt to reconnect to VTube Studio.
+        
+        Returns:
+            True if reconnection and re-authentication successful, False otherwise.
+        """
+        logger.info("Attempting to reconnect to VTube Studio...")
+        
+        # Close existing connection if any
+        if self.websocket:
+            try:
+                await self.websocket.close()
+            except:
+                pass
+            self.websocket = None
+            
+        # Reconnect
+        if await self.connect():
+            # Re-authenticate
+            if await self.authenticate():
+                logger.info("Successfully reconnected and re-authenticated with VTube Studio")
+                return True
+            else:
+                logger.error("Reconnection successful but re-authentication failed")
+                return False
+        else:
+            logger.error("Failed to reconnect to VTube Studio")
+            return False

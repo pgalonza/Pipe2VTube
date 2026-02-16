@@ -48,6 +48,7 @@ class FaceTracker:
         # No smoothing - handled by VTube Studio
         self._prev_vtube_params = {}
         self._prev_fps = 30.0  # Assume 30 FPS initially
+        self._last_time = 0.0  # Initialize for FPS calculation
 
     def process_frame(self, frame: np.ndarray, draw_landmarks: bool = False) -> Tuple[Optional[Dict[str, Any]], np.ndarray]:
         """
@@ -185,7 +186,7 @@ class FaceTracker:
     def _calculate_fps(self) -> float:
         """Calculate current FPS."""
         now = time.time()
-        if hasattr(self, '_last_time') and self._last_time > 0:
+        if self._last_time > 0:
             fps = 1.0 / (now - self._last_time)
         else:
             fps = 0.0
@@ -205,7 +206,8 @@ class FaceTracker:
         # Extract rotation matrix (3x3) from 4x4 matrix
         rot_matrix = matrix[:3, :3]
 
-        # Convert rotation matrix to Euler angles
+        # Convert rotation matrix to Euler angles using proper convention for MediaPipe
+        # Using XYZ convention (Tait-Bryan angles)
         sy = np.sqrt(rot_matrix[0, 0] * rot_matrix[0, 0] + rot_matrix[1, 0] * rot_matrix[1, 0])
         singular = sy < 1e-6
 
@@ -219,16 +221,29 @@ class FaceTracker:
             z = 0
 
         # Convert to degrees
-        # Note: MediaPipe's coordinate system may need axis remapping for VTube Studio
-        pitch = np.degrees(y)  # Was y, now mapped to pitch (up/down)
-        yaw = np.degrees(x)   # Was x, now mapped to yaw (left/right)
-        roll = np.degrees(z)  # Roll remains the same (tilting)
+        pitch = np.degrees(x)  # Rotation around X-axis (nodding)
+        yaw = np.degrees(y)    # Rotation around Y-axis (shaking head)
+        roll = np.degrees(z)    # Rotation around Z-axis (tilting head)
 
-        # Apply VTube Studio coordinate system mapping with corrected axes
-        # VTube Studio uses: X=up/down (pitch), Y=left/right (yaw), Z=tilt (roll)
-        # Invert Y and Z axes as requested
+        # Apply coordinate system mapping for VTube Studio
+        # MediaPipe coordinate system:
+        # +X = Right, +Y = Down, +Z = Forward
+        # VTube Studio coordinate system:
+        # +X = Up/Down (pitch), +Y = Left/Right (yaw), +Z = Tilt (roll)
+        # Need to convert between these systems
+        
+        # Map MediaPipe axes to VTube Studio axes:
+        # MediaPipe X (right) -> VTube Studio Y (left/right)
+        # MediaPipe Y (down) -> VTube Studio X (up/down) with inversion
+        # MediaPipe Z (forward) -> VTube Studio Z (tilt)
+        
+        # After analysis, the correct mapping is:
+        vts_pitch = -yaw      # MediaPipe Y -> VTube Studio X (inverted)
+        vts_yaw = pitch       # MediaPipe X -> VTube Studio Y
+        vts_roll = -roll      # MediaPipe Z -> VTube Studio Z (inverted)
+
         return {
-            "pitch": float(pitch),      # X: up/down (no inversion)
-            "yaw": -float(yaw),         # Y: left/right (inverted)
-            "roll": -float(roll)        # Z: tilt (inverted)
+            "pitch": float(vts_pitch),  # Up/down head movement
+            "yaw": float(vts_yaw),       # Left/right head movement
+            "roll": float(vts_roll)       # Head tilt
         }

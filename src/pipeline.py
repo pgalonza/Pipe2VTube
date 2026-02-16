@@ -124,6 +124,10 @@ async def injection_stage(
         fps: Target FPS for camera (used for timing).
         draw_landmarks: If True, show debug window with landmarks.
     """
+    # Timing control
+    target_frame_time = 1.0 / fps if fps > 0 else 0.016  # Target time per frame
+    last_injection_time = 0.0
+    
     async for item in mapping_stream:
         parameters = item["parameters"]
         face_found = item["face_found"]
@@ -140,9 +144,18 @@ async def injection_stage(
             await asyncio.sleep(0)  # Allow other tasks to run
             continue
             
-        # Use frame rate from camera as basis for injection timing
-        target_delay = 1.0 / fps if fps > 0 else 0.016  # Default to ~60 FPS if fps is invalid
-        await asyncio.sleep(target_delay)
+        # Timing control - ensure we don't inject too frequently
+        current_time = asyncio.get_event_loop().time()
+        elapsed_since_last = current_time - last_injection_time
+        
+        # If we're running too fast, add a small delay
+        if elapsed_since_last < target_frame_time:
+            sleep_time = target_frame_time - elapsed_since_last
+            if sleep_time > 0:
+                await asyncio.sleep(sleep_time)
+        
+        # Update last injection time
+        last_injection_time = asyncio.get_event_loop().time()
         
         # Ensure parameters is not empty when face is found
         if face_found and not parameters:
@@ -154,6 +167,16 @@ async def injection_stage(
         success = await client.inject_parameters(parameters, face_found=face_found)
         if not success:
             logger.warning("Failed to inject parameters to VTube Studio")
+            # Try to reconnect if connection was lost
+            if not client.is_connected:
+                logger.info("Attempting to reconnect to VTube Studio...")
+                if await client.reconnect():
+                    # Retry injection after reconnection
+                    retry_success = await client.inject_parameters(parameters, face_found=face_found)
+                    if not retry_success:
+                        logger.error("Failed to inject parameters after reconnection")
+                else:
+                    logger.error("Failed to reconnect to VTube Studio")
 
 
 async def async_generator_wrapper(sync_gen):

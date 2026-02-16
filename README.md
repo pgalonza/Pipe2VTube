@@ -4,6 +4,9 @@
 
 The project implements a plugin for VTube Studio that integrates MediaPipe via WebSocket API to control Live2D avatars using webcam data.
 
+> [!NOTE]
+> My first project done using vibcoding
+
 ## Key Features
 
 * **Head Tracking** - Detects and transmits head rotation angles

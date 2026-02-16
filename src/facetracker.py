@@ -238,8 +238,8 @@ class FaceTracker:
         # MediaPipe Z (forward) -> VTube Studio Z (tilt)
         
         # After analysis, the correct mapping is:
-        vts_pitch = -yaw      # MediaPipe Y -> VTube Studio X (inverted)
-        vts_yaw = pitch       # MediaPipe X -> VTube Studio Y
+        vts_pitch = yaw      # MediaPipe Y -> VTube Studio X (inverted)
+        vts_yaw = -pitch       # MediaPipe X -> VTube Studio Y
         vts_roll = -roll      # MediaPipe Z -> VTube Studio Z (inverted)
 
         return {

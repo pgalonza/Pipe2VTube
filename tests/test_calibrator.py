@@ -1,17 +1,31 @@
+"""
+Tests for eye_calibrator.py
+"""
+
+import unittest
 from src.eye_calibrator import calibrator
 
-print("Calibrator attributes:")
-print(f"EYE_OPEN_CALIBRATED_MAX_LEFT: {getattr(calibrator, 'EYE_OPEN_CALIBRATED_MAX_LEFT', 'NOT SET')}")
-print(f"EYE_OPEN_CALIBRATED_MIN_LEFT: {getattr(calibrator, 'EYE_OPEN_CALIBRATED_MIN_LEFT', 'NOT SET')}")
-print(f"EYE_OPEN_CALIBRATED_MAX_RIGHT: {getattr(calibrator, 'EYE_OPEN_CALIBRATED_MAX_RIGHT', 'NOT SET')}")
-print(f"EYE_OPEN_CALIBRATED_MIN_RIGHT: {getattr(calibrator, 'EYE_OPEN_CALIBRATED_MIN_RIGHT', 'NOT SET')}")
 
-print("\nHas attributes:")
-print(f"hasattr EYE_OPEN_CALIBRATED_MAX_LEFT: {hasattr(calibrator, 'EYE_OPEN_CALIBRATED_MAX_LEFT')}")
-print(f"hasattr EYE_OPEN_CALIBRATED_MIN_LEFT: {hasattr(calibrator, 'EYE_OPEN_CALIBRATED_MIN_LEFT')}")
-print(f"hasattr EYE_OPEN_CALIBRATED_MAX_RIGHT: {hasattr(calibrator, 'EYE_OPEN_CALIBRATED_MAX_RIGHT')}")
-print(f"hasattr EYE_OPEN_CALIBRATED_MIN_RIGHT: {hasattr(calibrator, 'EYE_OPEN_CALIBRATED_MIN_RIGHT')}")
+class TestCalibrator(unittest.TestCase):
+    """Test suite for eye_calibrator.py"""
 
-print("\nGet thresholds:")
-thresholds = calibrator.get_thresholds()
-print(f"Thresholds: {thresholds}")
+    def test_calibrator_attributes(self):
+        """Test the calibration attributes."""
+
+        # Test that calibrator has the expected attributes
+        self.assertTrue(hasattr(calibrator, 'EYE_OPEN_CALIBRATED_MAX_LEFT'))
+        self.assertTrue(hasattr(calibrator, 'EYE_OPEN_CALIBRATED_MIN_LEFT'))
+        self.assertTrue(hasattr(calibrator, 'EYE_OPEN_CALIBRATED_MAX_RIGHT'))
+        self.assertTrue(hasattr(calibrator, 'EYE_OPEN_CALIBRATED_MIN_RIGHT'))
+
+        # Test that thresholds can be retrieved
+        thresholds = calibrator.get_thresholds()
+        self.assertIsInstance(thresholds, dict)
+        self.assertIn('left_max', thresholds)
+        self.assertIn('left_min', thresholds)
+        self.assertIn('right_max', thresholds)
+        self.assertIn('right_min', thresholds)
+
+
+if __name__ == '__main__':
+    unittest.main()

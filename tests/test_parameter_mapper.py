@@ -28,12 +28,12 @@ class TestParameterMapper(unittest.TestCase):
         }
         result = transform_mediapipe_to_vtubestudio(mediapipe_data)
         
-        self.assertIn("FaceAngleY", result)
         self.assertIn("FaceAngleX", result)
+        self.assertIn("FaceAngleY", result)
         self.assertIn("FaceAngleZ", result)
         
-        self.assertAlmostEqual(result["FaceAngleY"], 15.0)
-        self.assertAlmostEqual(result["FaceAngleX"], -10.0)
+        self.assertAlmostEqual(result["FaceAngleX"], 15.0)
+        self.assertAlmostEqual(result["FaceAngleY"], -10.0)
         self.assertAlmostEqual(result["FaceAngleZ"], 5.0)
 
     def test_transform_only_blendshapes(self):
@@ -49,28 +49,31 @@ class TestParameterMapper(unittest.TestCase):
         
         # Standard mapped parameters
         self.assertIn("MouthSmile", result)
-        self.assertAlmostEqual(result["MouthSmile"], 0.8)
+        # Happy value 0.8 gets transformed to 0.5 + (0.8 * 0.5) = 0.9
+        self.assertAlmostEqual(result["MouthSmile"], 0.9)
         
         self.assertIn("MouthOpen", result)
         self.assertAlmostEqual(result["MouthOpen"], 0.3)
         
         # Custom parameter
         self.assertIn("custom_unknown_morph", result)
+        # Custom values get normalized to [0, 1] range, so 0.5 stays 0.5
         self.assertAlmostEqual(result["custom_unknown_morph"], 0.5)
 
     def test_transform_with_custom_data(self):
         """Test transformation with custom non-standard data."""
         mediapipe_data = {
-            "custom_value": 42.0,
-            "another_custom": 3.14
+            "custom_value": 0.8,
+            "another_custom": 0.3
         }
         result = transform_mediapipe_to_vtubestudio(mediapipe_data)
         
         self.assertIn("custom_custom_value", result)
         self.assertIn("custom_another_custom", result)
         
-        self.assertAlmostEqual(result["custom_custom_value"], 42.0)
-        self.assertAlmostEqual(result["custom_another_custom"], 3.14)
+        # Custom values get normalized to [0, 1] range
+        self.assertAlmostEqual(result["custom_custom_value"], 0.8)
+        self.assertAlmostEqual(result["custom_another_custom"], 0.3)
 
     def test_invalid_data_types(self):
         """Test handling of invalid data types."""

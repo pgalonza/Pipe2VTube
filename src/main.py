@@ -22,7 +22,8 @@ logger = logging.getLogger(__name__)
 
 
 async def main(host: str = "localhost", port: int = 8001, camera_id: int = 0,
-                fps: int = 30, no_vtube: bool = False, debug: bool = False):
+                fps: int = 30, no_vtube: bool = False, debug: bool = False,
+                force_calibration: bool = False):
     """
     Main application loop.
 
@@ -37,13 +38,34 @@ async def main(host: str = "localhost", port: int = 8001, camera_id: int = 0,
     # Initialize components
     tracker = FaceTracker()
     
-    # Run eye calibration
+    # Check if calibration is needed
+    import os
+    calibration_file_exists = os.path.exists("eye_calibration.json")
+    
+    if force_calibration or not calibration_file_exists:
+        if force_calibration:
+            logger.info("Force calibration requested. Starting eye calibration...")
+        else:
+            logger.info("Calibration file not found. Starting eye calibration...")
+        
+        # Run eye calibration
+        from src.eye_calibrator import calibrator
+        from src.eye_calibrator import EyeCalibrationHelper
+        calibration_helper = EyeCalibrationHelper(calibrator)
+        calibration_result = await calibration_helper.run_calibration()
+        if not calibration_result:
+            logger.error("Калибровка не удалась, продолжение с настройками по умолчанию.")
+        else:
+            logger.info("Eye calibration completed successfully.")
+    else:
+        logger.info("Calibration file found. Skipping eye calibration.")
+    
+    # Check calibration quality
     from src.eye_calibrator import calibrator
-    from src.eye_calibrator import EyeCalibrationHelper
-    calibration_helper = EyeCalibrationHelper(calibrator)
-    calibration_result = await calibration_helper.run_calibration()
-    if not calibration_result:
-        logger.error("Калибровка не удалась, продолжение с настройками по умолчанию.")
+    metrics = calibrator.calculate_calibration_quality()
+    if calibrator.needs_recalibration():
+        suggestions = calibrator.quality_checker.suggest_recalibration(metrics)
+        logger.warning("Калибровка имеет низкое качество: %s", suggestions)
     
     logger.info("Старт основной части программы")
     
@@ -136,12 +158,13 @@ if __name__ == "__main__":
     parser.add_argument("--fps", type=int, default=30, help="Camera FPS")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode with face landmarks visualization")
     parser.add_argument("--no-vtube", action="store_true", help="Disable VTube Studio connection and run in standalone debug mode")
+    parser.add_argument("--calibrate", action="store_true", help="Force eye calibration even if calibration file exists")
     
     args = parser.parse_args()
     
     # Run the async main function
     try:
-        asyncio.run(main(args.host, args.port, args.camera, args.fps, args.no_vtube, args.debug))
+        asyncio.run(main(args.host, args.port, args.camera, args.fps, args.no_vtube, args.debug, args.calibrate))
     except KeyboardInterrupt:
         print("\nShutting down...")
     except Exception as e:

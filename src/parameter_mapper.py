@@ -304,4 +304,22 @@ def transform_mediapipe_to_vtubestudio(mediapipe_data: Dict[str, Any]) -> Dict[s
                 logger.warning(f"Error calculating eye openness for {eye_name}: {e}")
                 continue
 
+    
+        # Calculate eye direction from landmarks if available
+        # Use calibrated eye direction tracking
+        try:
+            eye_direction = calibrator.calibrate_eye_direction(landmarks)
+            
+            # Add calibrated eye direction to VTube Studio parameters
+            vtube_params["EyeLeftX"] = eye_direction["left_x"]
+            vtube_params["EyeLeftY"] = eye_direction["left_y"]
+            vtube_params["EyeRightX"] = eye_direction["right_x"]
+            vtube_params["EyeRightY"] = eye_direction["right_y"]
+            
+            # Debug logging
+            logger.debug(f"Eye tracking - Left: ({eye_direction['left_x']:.3f}, {eye_direction['left_y']:.3f}), "
+                       f"Right: ({eye_direction['right_x']:.3f}, {eye_direction['right_y']:.3f})")
+        except Exception as e:
+            logger.warning(f"Error calculating calibrated eye direction: {e}")
+
     return vtube_params

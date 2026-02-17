@@ -23,10 +23,10 @@ The project implements a plugin for VTube Studio that integrates MediaPipe via W
 - [ ] TongueOut
 - [x] EyeOpenLeft
 - [x] EyeOpenRight
-- [ ] EyeLeftX
-- [ ] EyeLeftY
-- [ ] EyeRightX
-- [ ] EyeRightY
+- [x] EyeLeftX
+- [x] EyeLeftY
+- [x] EyeRightX
+- [x] EyeRightY
 - [x] CheekPuff
 - [x] BrowLeftY
 - [x] BrowRightY

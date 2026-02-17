@@ -225,6 +225,16 @@ class EyeCalibrator:
         self.EYE_OPEN_CALIBRATED_MAX_RIGHT = 0.038
         self.EYE_OPEN_CALIBRATED_MIN_RIGHT = 0.012
         
+        # Initialize eye direction calibration attributes with default values
+        self.EYE_DIRECTION_CALIBRATED_MIN_LEFT_X = -0.5
+        self.EYE_DIRECTION_CALIBRATED_MAX_LEFT_X = 0.5
+        self.EYE_DIRECTION_CALIBRATED_MIN_LEFT_Y = -0.5
+        self.EYE_DIRECTION_CALIBRATED_MAX_LEFT_Y = 0.5
+        self.EYE_DIRECTION_CALIBRATED_MIN_RIGHT_X = -0.5
+        self.EYE_DIRECTION_CALIBRATED_MAX_RIGHT_X = 0.5
+        self.EYE_DIRECTION_CALIBRATED_MIN_RIGHT_Y = -0.5
+        self.EYE_DIRECTION_CALIBRATED_MAX_RIGHT_Y = 0.5
+        
         self._load_calibration_data()
         
     def start_calibration(self):
@@ -368,7 +378,214 @@ class EyeCalibrator:
                 self._finalize_calibration()
                 return True
 
+        # Update eye direction calibration data
+        self.update_eye_direction_calibration(landmarks, self.is_calibrating)
+
         return False
+        
+    def calibrate_eye_direction(self, landmarks: list) -> Dict[str, float]:
+        """
+        Calibrate eye direction tracking using current landmarks.
+        
+        Args:
+            landmarks: List of face landmarks from MediaPipe.
+            
+        Returns:
+            Dict: Dictionary with calibrated eye direction values.
+        """
+        # MediaPipe Face Mesh landmark indices for eye tracking
+        # Left eye (from viewer's perspective, right eye in MediaPipe)
+        left_pupil = 468
+        left_eye_left_corner = 33
+        left_eye_right_corner = 133
+        left_eye_top = 159
+        left_eye_bottom = 145
+        
+        # Right eye (from viewer's perspective, left eye in MediaPipe)
+        right_pupil = 473
+        right_eye_left_corner = 362
+        right_eye_right_corner = 263
+        right_eye_top = 386
+        right_eye_bottom = 374
+        
+        # Check if all required landmarks are available
+        required_landmarks = [
+            left_pupil, left_eye_left_corner, left_eye_right_corner, left_eye_top, left_eye_bottom,
+            right_pupil, right_eye_left_corner, right_eye_right_corner, right_eye_top, right_eye_bottom
+        ]
+        
+        # Verify all landmarks exist
+        if not all(0 <= idx < len(landmarks) for idx in required_landmarks):
+            # Return default values if landmarks are missing
+            return {
+                "left_x": 0.0,
+                "left_y": 0.0,
+                "right_x": 0.0,
+                "right_y": 0.0
+            }
+        
+        try:
+            # Calculate eye centers
+            left_eye_center_x = (landmarks[left_eye_left_corner].x + landmarks[left_eye_right_corner].x) / 2
+            left_eye_center_y = (landmarks[left_eye_left_corner].y + landmarks[left_eye_right_corner].y) / 2
+            
+            right_eye_center_x = (landmarks[right_eye_left_corner].x + landmarks[right_eye_right_corner].x) / 2
+            right_eye_center_y = (landmarks[right_eye_left_corner].y + landmarks[right_eye_right_corner].y) / 2
+            
+            # Calculate eye dimensions
+            left_eye_width = abs(landmarks[left_eye_right_corner].x - landmarks[left_eye_left_corner].x)
+            left_eye_height = abs(landmarks[left_eye_top].y - landmarks[left_eye_bottom].y)
+            
+            right_eye_width = abs(landmarks[right_eye_right_corner].x - landmarks[right_eye_left_corner].x)
+            right_eye_height = abs(landmarks[right_eye_top].y - landmarks[right_eye_bottom].y)
+            
+            # Calculate raw gaze directions
+            left_gaze_x = (landmarks[left_pupil].x - left_eye_center_x) / left_eye_width if left_eye_width > 0 else 0
+            left_gaze_y = (landmarks[left_pupil].y - left_eye_center_y) / left_eye_height if left_eye_height > 0 else 0
+            
+            right_gaze_x = (landmarks[right_pupil].x - right_eye_center_x) / right_eye_width if right_eye_width > 0 else 0
+            right_gaze_y = (landmarks[right_pupil].y - right_eye_center_y) / right_eye_height if right_eye_height > 0 else 0
+            
+            # Apply calibration normalization
+            left_gaze_x_calibrated = self._normalize_eye_direction(
+                left_gaze_x,
+                self.EYE_DIRECTION_CALIBRATED_MIN_LEFT_X,
+                self.EYE_DIRECTION_CALIBRATED_MAX_LEFT_X
+            )
+            left_gaze_y_calibrated = self._normalize_eye_direction(
+                left_gaze_y,
+                self.EYE_DIRECTION_CALIBRATED_MIN_LEFT_Y,
+                self.EYE_DIRECTION_CALIBRATED_MAX_LEFT_Y
+            )
+            right_gaze_x_calibrated = self._normalize_eye_direction(
+                right_gaze_x,
+                self.EYE_DIRECTION_CALIBRATED_MIN_RIGHT_X,
+                self.EYE_DIRECTION_CALIBRATED_MAX_RIGHT_X
+            )
+            right_gaze_y_calibrated = self._normalize_eye_direction(
+                right_gaze_y,
+                self.EYE_DIRECTION_CALIBRATED_MIN_RIGHT_Y,
+                self.EYE_DIRECTION_CALIBRATED_MAX_RIGHT_Y
+            )
+            
+            return {
+                "left_x": left_gaze_x_calibrated,
+                "left_y": left_gaze_y_calibrated,
+                "right_x": right_gaze_x_calibrated,
+                "right_y": right_gaze_y_calibrated
+            }
+        except Exception as e:
+            logger.warning(f"Error calibrating eye direction: {e}")
+            # Return default values on error
+            return {
+                "left_x": 0.0,
+                "left_y": 0.0,
+                "right_x": 0.0,
+                "right_y": 0.0
+            }
+    
+    def update_eye_direction_calibration(self, landmarks: list, is_calibrating: bool = False):
+        """
+        Update eye direction calibration data based on current landmarks.
+        
+        Args:
+            landmarks: List of face landmarks from MediaPipe.
+            is_calibrating: Whether we're currently calibrating.
+        """
+        # MediaPipe Face Mesh landmark indices for eye tracking
+        # Left eye (from viewer's perspective, right eye in MediaPipe)
+        left_pupil = 468
+        left_eye_left_corner = 33
+        left_eye_right_corner = 133
+        left_eye_top = 159
+        left_eye_bottom = 145
+        
+        # Right eye (from viewer's perspective, left eye in MediaPipe)
+        right_pupil = 473
+        right_eye_left_corner = 362
+        right_eye_right_corner = 263
+        right_eye_top = 386
+        right_eye_bottom = 374
+        
+        # Check if all required landmarks are available
+        required_landmarks = [
+            left_pupil, left_eye_left_corner, left_eye_right_corner, left_eye_top, left_eye_bottom,
+            right_pupil, right_eye_left_corner, right_eye_right_corner, right_eye_top, right_eye_bottom
+        ]
+        
+        # Verify all landmarks exist
+        if not all(0 <= idx < len(landmarks) for idx in required_landmarks):
+            return
+        
+        try:
+            # Calculate eye centers
+            left_eye_center_x = (landmarks[left_eye_left_corner].x + landmarks[left_eye_right_corner].x) / 2
+            left_eye_center_y = (landmarks[left_eye_left_corner].y + landmarks[left_eye_right_corner].y) / 2
+            
+            right_eye_center_x = (landmarks[right_eye_left_corner].x + landmarks[right_eye_right_corner].x) / 2
+            right_eye_center_y = (landmarks[right_eye_left_corner].y + landmarks[right_eye_right_corner].y) / 2
+            
+            # Calculate eye dimensions
+            left_eye_width = abs(landmarks[left_eye_right_corner].x - landmarks[left_eye_left_corner].x)
+            left_eye_height = abs(landmarks[left_eye_top].y - landmarks[left_eye_bottom].y)
+            
+            right_eye_width = abs(landmarks[right_eye_right_corner].x - landmarks[right_eye_left_corner].x)
+            right_eye_height = abs(landmarks[right_eye_top].y - landmarks[right_eye_bottom].y)
+            
+            # Calculate raw gaze directions
+            left_gaze_x = (landmarks[left_pupil].x - left_eye_center_x) / left_eye_width if left_eye_width > 0 else 0
+            left_gaze_y = (landmarks[left_pupil].y - left_eye_center_y) / left_eye_height if left_eye_height > 0 else 0
+            
+            right_gaze_x = (landmarks[right_pupil].x - right_eye_center_x) / right_eye_width if right_eye_width > 0 else 0
+            right_gaze_y = (landmarks[right_pupil].y - right_eye_center_y) / right_eye_height if right_eye_height > 0 else 0
+            
+            # Update calibration data if calibrating
+            if is_calibrating:
+                # Update min/max values for left eye X direction
+                if left_gaze_x < self.EYE_DIRECTION_CALIBRATED_MIN_LEFT_X:
+                    self.EYE_DIRECTION_CALIBRATED_MIN_LEFT_X = left_gaze_x
+                if left_gaze_x > self.EYE_DIRECTION_CALIBRATED_MAX_LEFT_X:
+                    self.EYE_DIRECTION_CALIBRATED_MAX_LEFT_X = left_gaze_x
+                
+                # Update min/max values for left eye Y direction
+                if left_gaze_y < self.EYE_DIRECTION_CALIBRATED_MIN_LEFT_Y:
+                    self.EYE_DIRECTION_CALIBRATED_MIN_LEFT_Y = left_gaze_y
+                if left_gaze_y > self.EYE_DIRECTION_CALIBRATED_MAX_LEFT_Y:
+                    self.EYE_DIRECTION_CALIBRATED_MAX_LEFT_Y = left_gaze_y
+                
+                # Update min/max values for right eye X direction
+                if right_gaze_x < self.EYE_DIRECTION_CALIBRATED_MIN_RIGHT_X:
+                    self.EYE_DIRECTION_CALIBRATED_MIN_RIGHT_X = right_gaze_x
+                if right_gaze_x > self.EYE_DIRECTION_CALIBRATED_MAX_RIGHT_X:
+                    self.EYE_DIRECTION_CALIBRATED_MAX_RIGHT_X = right_gaze_x
+                
+                # Update min/max values for right eye Y direction
+                if right_gaze_y < self.EYE_DIRECTION_CALIBRATED_MIN_RIGHT_Y:
+                    self.EYE_DIRECTION_CALIBRATED_MIN_RIGHT_Y = right_gaze_y
+                if right_gaze_y > self.EYE_DIRECTION_CALIBRATED_MAX_RIGHT_Y:
+                    self.EYE_DIRECTION_CALIBRATED_MAX_RIGHT_Y = right_gaze_y
+        except Exception as e:
+            logger.warning(f"Error updating eye direction calibration: {e}")
+    
+    def _normalize_eye_direction(self, value: float, min_val: float, max_val: float) -> float:
+        """
+        Normalize eye direction value to [-1, 1] range using calibration data.
+        
+        Args:
+            value: Raw eye direction value
+            min_val: Minimum calibrated value
+            max_val: Maximum calibrated value
+            
+        Returns:
+            float: Normalized value in [-1, 1] range
+        """
+        if max_val - min_val == 0:
+            return 0.0
+        
+        # Normalize to [0, 1] range first
+        normalized = (value - min_val) / (max_val - min_val)
+        # Convert to [-1, 1] range
+        return max(-1.0, min(1.0, normalized * 2 - 1))
         
     def calculate_calibration_quality(self) -> Dict[str, float]:
         """
@@ -447,6 +664,16 @@ class EyeCalibrator:
                     self.EYE_OPEN_CALIBRATED_MIN_LEFT = data["left_min"]
                     self.EYE_OPEN_CALIBRATED_MAX_RIGHT = data["right_max"]
                     self.EYE_OPEN_CALIBRATED_MIN_RIGHT = data["right_min"]
+                    
+                    # Load eye direction calibration data if available
+                    self.EYE_DIRECTION_CALIBRATED_MIN_LEFT_X = data.get("left_dir_min_x", -0.5)
+                    self.EYE_DIRECTION_CALIBRATED_MAX_LEFT_X = data.get("left_dir_max_x", 0.5)
+                    self.EYE_DIRECTION_CALIBRATED_MIN_LEFT_Y = data.get("left_dir_min_y", -0.5)
+                    self.EYE_DIRECTION_CALIBRATED_MAX_LEFT_Y = data.get("left_dir_max_y", 0.5)
+                    self.EYE_DIRECTION_CALIBRATED_MIN_RIGHT_X = data.get("right_dir_min_x", -0.5)
+                    self.EYE_DIRECTION_CALIBRATED_MAX_RIGHT_X = data.get("right_dir_max_x", 0.5)
+                    self.EYE_DIRECTION_CALIBRATED_MIN_RIGHT_Y = data.get("right_dir_min_y", -0.5)
+                    self.EYE_DIRECTION_CALIBRATED_MAX_RIGHT_Y = data.get("right_dir_max_y", 0.5)
                     logger.info("Loaded previous calibration data from file")
         except Exception as e:
             logger.warning(f"Could not load calibration data: {e}")
@@ -455,6 +682,16 @@ class EyeCalibrator:
             self.EYE_OPEN_CALIBRATED_MIN_LEFT = 0.012
             self.EYE_OPEN_CALIBRATED_MAX_RIGHT = 0.038
             self.EYE_OPEN_CALIBRATED_MIN_RIGHT = 0.012
+            
+            # Default values for eye direction calibration
+            self.EYE_DIRECTION_CALIBRATED_MIN_LEFT_X = -0.5
+            self.EYE_DIRECTION_CALIBRATED_MAX_LEFT_X = 0.5
+            self.EYE_DIRECTION_CALIBRATED_MIN_LEFT_Y = -0.5
+            self.EYE_DIRECTION_CALIBRATED_MAX_LEFT_Y = 0.5
+            self.EYE_DIRECTION_CALIBRATED_MIN_RIGHT_X = -0.5
+            self.EYE_DIRECTION_CALIBRATED_MAX_RIGHT_X = 0.5
+            self.EYE_DIRECTION_CALIBRATED_MIN_RIGHT_Y = -0.5
+            self.EYE_DIRECTION_CALIBRATED_MAX_RIGHT_Y = 0.5
 
     def _save_calibration_data(self):
         """Save calibration data to file."""
@@ -463,7 +700,15 @@ class EyeCalibrator:
                 "left_max": float(self.EYE_OPEN_CALIBRATED_MAX_LEFT),
                 "left_min": float(self.EYE_OPEN_CALIBRATED_MIN_LEFT),
                 "right_max": float(self.EYE_OPEN_CALIBRATED_MAX_RIGHT),
-                "right_min": float(self.EYE_OPEN_CALIBRATED_MIN_RIGHT)
+                "right_min": float(self.EYE_OPEN_CALIBRATED_MIN_RIGHT),
+                "left_dir_min_x": float(self.EYE_DIRECTION_CALIBRATED_MIN_LEFT_X),
+                "left_dir_max_x": float(self.EYE_DIRECTION_CALIBRATED_MAX_LEFT_X),
+                "left_dir_min_y": float(self.EYE_DIRECTION_CALIBRATED_MIN_LEFT_Y),
+                "left_dir_max_y": float(self.EYE_DIRECTION_CALIBRATED_MAX_LEFT_Y),
+                "right_dir_min_x": float(self.EYE_DIRECTION_CALIBRATED_MIN_RIGHT_X),
+                "right_dir_max_x": float(self.EYE_DIRECTION_CALIBRATED_MAX_RIGHT_X),
+                "right_dir_min_y": float(self.EYE_DIRECTION_CALIBRATED_MIN_RIGHT_Y),
+                "right_dir_max_y": float(self.EYE_DIRECTION_CALIBRATED_MAX_RIGHT_Y)
             }
             with open("eye_calibration.json", "w") as f:
                 json.dump(data, f)

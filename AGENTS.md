@@ -38,8 +38,10 @@ To ensure stable operation of the face tracking system and data transmission to 
     - `src/main.py` — entry point, module coordination.
     - `src/parameter_mapper.py` — mapping parameters from MediaPipe to VTube Studio.
     - `src/eye_calibrator.py` — eye calibration.
+    - `src/optimized_parameter_mapper.py` — optimized parameter mapping.
+    - `src/performance_monitor.py` - performance monitoring.
+    - `src/pipeline.py` — video processing pipeline.
     - `pyproject.toml` with up-to-date dependencies.
-    - `pipeline.py` — video processing pipeline.
 
 ## Launch Procedure
 

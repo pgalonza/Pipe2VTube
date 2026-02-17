@@ -6,11 +6,10 @@ Coordinates the face tracking pipeline.
 import asyncio
 import logging
 import argparse
-
 # Import local modules
 from src.facetracker import FaceTracker
 from src.vtube_client import VTubeStudioClient
-from src.pipeline import capture_stage, tracking_stage, mapping_stage, injection_stage
+from src.pipeline import capture_stage, tracking_stage, mapping_stage
 from src.parameter_mapper import MEDIPIPE_TO_VTUBE, STANDARD_VTS_PARAMS, CUSTOM_PARAM_NAMES
 
 # Configure logging
@@ -125,7 +124,8 @@ async def main(host: str = "localhost", port: int = 8001, camera_id: int = 0,
     
     # Run the injection stage
     try:
-        await injection_stage(mapping_stream, client, fps, draw_landmarks=debug)
+        from src.pipeline import injection_stage
+        await injection_stage(mapping_stream, client, fps, draw_landmarks=debug, enable_memory_optimization=True)
     except KeyboardInterrupt:
         logger.info("Shutting down...")
     except Exception as e:
@@ -136,6 +136,8 @@ async def main(host: str = "localhost", port: int = 8001, camera_id: int = 0,
                 await client.close()
             except Exception as e:
                 logger.error("Error during client cleanup: %s", e)
+
+
 
 async def async_generator_wrapper(sync_gen):
     """Wrapper to use synchronous generator in async context."""

@@ -12,6 +12,7 @@ from typing import Dict, Optional
 import uuid
 
 from src.optimized_parameter_mapper import optimized_mapper
+from src.performance_monitor import performance_monitor
 
 logger = logging.getLogger(__name__)
 
@@ -398,6 +399,8 @@ class VTubeStudioClient:
             if await self.authenticate():
                 logger.info("Successfully reconnected and re-authenticated with VTube Studio")
                 self.reconnect_attempts = 0  # Reset on successful reconnection
+                # Record reconnection event in performance monitor
+                performance_monitor.record_reconnection()
                 return True
             else:
                 logger.error("Reconnection successful but re-authentication failed")

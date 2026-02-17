@@ -116,8 +116,9 @@ async def injection_stage(
     mapping_stream: AsyncGenerator[Dict[str, Any], None],
     client: Optional[VTubeStudioClient],
     fps: int,
-    draw_landmarks: bool = False
-) -> AsyncGenerator[None, None]:
+    draw_landmarks: bool = False,
+    enable_memory_optimization: bool = True
+):
     """
     Stage 4: Inject parameters to VTube Studio.
 
@@ -127,14 +128,42 @@ async def injection_stage(
         fps: Target FPS for camera (used for timing).
         draw_landmarks: If True, show debug window with landmarks.
     """
+    # Import performance monitor
+    from src.performance_monitor import performance_monitor
+    
     # Timing control
     target_frame_time = 1.0 / fps if fps > 0 else 0.016  # Target time per frame
     last_injection_time = 0.0
     
+    # Adaptive frame rate control
+    injection_times = []  # Keep last 10 injection times for performance monitoring
+    max_injection_times = 10
+    frame_skip_counter = 0
+    max_frame_skip = 3  # Maximum frames to skip when VTube Studio is busy
+    
+    frame_counter = 0
+    gc_interval = 300  # Run garbage collection every 300 frames
+    last_gc_time = 0.0
+    gc_interval_time = 30.0  # Run garbage collection every 30 seconds minimum
+    
     async for item in mapping_stream:
+        # Start performance monitoring for this frame
+        performance_monitor.start_frame()
+        
         parameters = item["parameters"]
         face_found = item["face_found"]
         display_frame = item["display_frame"]
+        frame_counter += 1
+        
+        # Memory optimization - periodic garbage collection
+        if enable_memory_optimization and frame_counter % gc_interval == 0:
+            import gc
+            current_time = asyncio.get_event_loop().time()
+            # Run garbage collection if enough time has passed
+            if (current_time - last_gc_time) > gc_interval_time:
+                collected = gc.collect()
+                last_gc_time = current_time
+                logger.debug("Memory optimization: Collected %d objects", collected)
         
         # Show debug window if draw_landmarks is requested
         if draw_landmarks and display_frame is not None:
@@ -146,6 +175,24 @@ async def injection_stage(
         if client is None:
             await asyncio.sleep(0)  # Allow other tasks to run
             continue
+            
+        # Adaptive frame skipping based on VTube Studio performance
+        # Calculate average injection time to determine if we should skip frames
+        if injection_times:
+            avg_injection_time = sum(injection_times) / len(injection_times)
+            # If average injection time is too high, skip frames
+            if avg_injection_time > target_frame_time * 2:
+                frame_skip_counter += 1
+                if frame_skip_counter <= max_frame_skip:
+                    logger.debug("Skipping frame due to high injection time: %.3fs", avg_injection_time)
+                    # Record skipped frame in performance monitor
+                    performance_monitor.end_frame(skipped=True)
+                    await asyncio.sleep(0)  # Allow other tasks to run
+                    continue
+            else:
+                frame_skip_counter = 0  # Reset skip counter when performance is good
+        else:
+            frame_skip_counter = 0  # Reset skip counter
             
         # Timing control - ensure we don't inject too frequently
         current_time = asyncio.get_event_loop().time()
@@ -160,6 +207,9 @@ async def injection_stage(
         # Update last injection time
         last_injection_time = asyncio.get_event_loop().time()
         
+        # Measure injection time for adaptive control
+        injection_start_time = asyncio.get_event_loop().time()
+        
         # Ensure parameters is not empty when face is found
         if face_found and not parameters:
             logger.warning("No parameters to inject, but face is found. Sending minimal parameters to avoid API error.")
@@ -168,8 +218,34 @@ async def injection_stage(
             face_found = True  # Ensure face is still reported as found
         
         success = await client.inject_parameters(parameters, face_found=face_found)
+        
+        # Calculate and store injection time for adaptive control
+        injection_end_time = asyncio.get_event_loop().time()
+        injection_time = injection_end_time - injection_start_time
+        
+        # Keep only the last N injection times for performance monitoring
+        injection_times.append(injection_time)
+        if len(injection_times) > max_injection_times:
+            injection_times.pop(0)
+        
+        # Record injection time in performance monitor
+        performance_monitor.record_injection_time(injection_time)
+        
+        # Log performance metrics periodically
+        if len(injection_times) % 5 == 0 and injection_times:
+            avg_time = sum(injection_times) / len(injection_times)
+            logger.debug("Average injection time: %.3fs (target: %.3fs)", avg_time, target_frame_time)
+        
         if not success:
             logger.warning("Failed to inject parameters to VTube Studio")
+            performance_monitor.record_api_error()
+        
+        # End performance monitoring for this frame
+        performance_monitor.end_frame(skipped=False)
+        
+        # Log performance metrics periodically
+        if performance_monitor.should_log():
+            performance_monitor.log_performance()
 
 
 async def async_generator_wrapper(sync_gen):

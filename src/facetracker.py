@@ -27,12 +27,15 @@ class FaceTracker:
     Face tracker using MediaPipe Tasks API.
     """
 
-    def __init__(self, model_path: str = "face_landmarker.task"):
+    def __init__(self, model_path: str = "face_landmarker.task",
+                 enable_threading: bool = True, min_detection_confidence: float = 0.5):
         """
         Initialize the face tracker.
 
         Args:
             model_path: Path to the MediaPipe face landmarker model.
+            enable_threading: Whether to enable threading for MediaPipe processing.
+            min_detection_confidence: Minimum confidence for face detection.
         """
         # Use the new Tasks API correctly
         base_options = python.BaseOptions(model_asset_path=model_path)
@@ -40,10 +43,17 @@ class FaceTracker:
             base_options=base_options,
             output_face_blendshapes=True,
             output_facial_transformation_matrixes=True,
-            num_faces=1  # Track only one face
+            num_faces=1,  # Track only one face
+            running_mode=vision.RunningMode.IMAGE,
+            min_face_detection_confidence=min_detection_confidence
         )
         self.detector = vision.FaceLandmarker.create_from_options(options)
         logger.info("Face tracker initialized with model: %s", model_path)
+        
+        # Threading support
+        self.enable_threading = enable_threading
+        
+        # No resolution scaling for now
         
         # No smoothing - handled by VTube Studio
         self._prev_vtube_params = {}
@@ -62,10 +72,14 @@ class FaceTracker:
             Tuple of (face_data, output_frame) where face_data is None if no face detected,
             and output_frame is the original frame or frame with landmarks drawn.
         """
+        # Process frame directly without scaling
+        processing_frame = frame
+        
         # Convert BGR to RGB
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        rgb_frame = cv2.cvtColor(processing_frame, cv2.COLOR_BGR2RGB)
         image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
 
+        # Process frame with MediaPipe
         detection_result = self.detector.detect(image)
 
         if not detection_result.face_landmarks:
@@ -77,6 +91,8 @@ class FaceTracker:
         landmarks = detection_result.face_landmarks[0]
         blendshapes = detection_result.face_blendshapes[0] if detection_result.face_blendshapes else None
         transformation_matrix = detection_result.facial_transformation_matrixes[0] if detection_result.facial_transformation_matrixes else None
+
+        # Landmarks are normalized coordinates (0-1), no scaling needed
 
         # Extract head pose from transformation matrix
         pose = self._extract_pose(transformation_matrix) if transformation_matrix is not None else None
@@ -150,7 +166,7 @@ class FaceTracker:
                 # Fallback to manual connections
                 face_connections = [
                     # Jawline
-                    (0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 6), (6, 7), (7, 8), (8, 9), 
+                    (0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 6), (6, 7), (7, 8), (8, 9),
                     (9, 10), (10, 11), (11, 12), (12, 13), (13, 14), (14, 15), (15, 16), (16, 17),
                     # Left eyebrow
                     (17, 18), (18, 19), (19, 20), (20, 21),
@@ -167,16 +183,16 @@ class FaceTracker:
                     # Left to right face connection
                     (27, 39), (27, 42),
                     # Mouth
-                    (48, 49), (49, 50), (50, 51), (51, 52), (52, 53), (53, 54), 
+                    (48, 49), (49, 50), (50, 51), (51, 52), (52, 53), (53, 54),
                     (54, 55), (55, 56), (56, 57), (57, 58), (58, 59), (59, 48),
                 ]
             
 
 
             # Add text overlay
-            cv2.putText(debug_frame, "Face Tracking Debug View", (10, 30), 
+            cv2.putText(debug_frame, "Face Tracking Debug View", (10, 30),
                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-            cv2.putText(debug_frame, f"FPS: {current_fps:.1f}", (10, 70), 
+            cv2.putText(debug_frame, f"FPS: {current_fps:.1f}", (10, 70),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             
             output_frame = debug_frame

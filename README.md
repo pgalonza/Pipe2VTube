@@ -9,12 +9,29 @@ The project implements a plugin for VTube Studio that integrates MediaPipe via W
 
 ## Key Features
 
-* **Head Tracking** - Detects and transmits head rotation angles
-* **Facial Expressions** - Tracks and controls:
-  * Mouth movements
-  * Smile detection
-  * Eyelid movements
-  * Eyebrow movements
+- [ ] FacePositionX
+- [ ] FacePositionY
+- [ ] FacePositionZ
+- [x] FaceAngleX
+- [x] FaceAngleY
+- [x] FaceAngleZ
+- [x] MouthSmile
+- [x] MouthOpen
+- [x] Brows
+- [ ] MousePositionX
+- [ ] MousePositionY
+- [ ] TongueOut
+- [x] EyeOpenLeft
+- [x] EyeOpenRight
+- [ ] EyeLeftX
+- [ ] EyeLeftY
+- [ ] EyeRightX
+- [ ] EyeRightY
+- [x] CheekPuff
+- [x] BrowLeftY
+- [x] BrowRightY
+- [ ] MouthX
+- [ ] FaceAngry
 
 ## Prerequisites
 

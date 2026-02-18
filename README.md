@@ -71,7 +71,8 @@ uv run python -m src.main
 - --camera       Camera device ID (default: 0)
 - --fps          Camera frames per second (default: 30)
 - --debug        Enable debug mode with face landmarks visualization
-- --no-vtube     Run in standalone debug mode without VTube Studio connection
+- --no-vtube     Run in standalone debug mode without VTube Studio
+- --calibrate    Enable calibration with force
 
 ## Development Tools
 

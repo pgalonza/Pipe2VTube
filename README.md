@@ -43,7 +43,7 @@ The project implements a plugin for VTube Studio that integrates MediaPipe via W
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/your-username/live2d-avatar-controller.git
+git clone https://github.com/pgalonza/Pipe2VTube
 ```
 
 2. Download FaceLandmarker

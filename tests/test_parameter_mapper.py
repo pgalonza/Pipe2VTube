@@ -89,6 +89,70 @@ class TestParameterMapper(unittest.TestCase):
         result = transform_mediapipe_to_vtubestudio({"blendshapes": "invalid"})
         self.assertIsInstance(result, dict)
 
+    def test_individual_brow_tracking(self):
+        """Test individual brow tracking with separate left and right brow calculations."""
+        mediapipe_data = {
+            "blendshapes": {
+                "browDownLeft": 0.6,
+                "browOuterUpLeft": 0.3,
+                "browDownRight": 0.4,
+                "browOuterUpRight": 0.5,
+                "browInnerUp": 0.7
+            }
+        }
+        result = transform_mediapipe_to_vtubestudio(mediapipe_data)
+        
+        # Check that individual brow parameters are present
+        self.assertIn("BrowLeftY", result)
+        self.assertIn("BrowRightY", result)
+        self.assertIn("BrowInnerUp", result)
+        
+        # Check that the old combined Brows parameter is not present
+        self.assertNotIn("Brows", result)
+        
+        # Check value ranges (should be clamped to [0, 1])
+        self.assertGreaterEqual(result["BrowLeftY"], 0.0)
+        self.assertLessEqual(result["BrowLeftY"], 1.0)
+        self.assertGreaterEqual(result["BrowRightY"], 0.0)
+        self.assertLessEqual(result["BrowRightY"], 1.0)
+        self.assertGreaterEqual(result["BrowInnerUp"], 0.0)
+        self.assertLessEqual(result["BrowInnerUp"], 1.0)
+
+    def test_brow_tracking_edge_cases(self):
+        """Test brow tracking with edge cases like missing blendshape data."""
+        # Test with only left brow data
+        mediapipe_data_left = {
+            "blendshapes": {
+                "browDownLeft": 0.5,
+                "browOuterUpLeft": 0.3
+            }
+        }
+        result_left = transform_mediapipe_to_vtubestudio(mediapipe_data_left)
+        self.assertIn("BrowLeftY", result_left)
+        self.assertNotIn("BrowRightY", result_left)
+        
+        # Test with only right brow data
+        mediapipe_data_right = {
+            "blendshapes": {
+                "browDownRight": 0.4,
+                "browOuterUpRight": 0.6
+            }
+        }
+        result_right = transform_mediapipe_to_vtubestudio(mediapipe_data_right)
+        self.assertNotIn("BrowLeftY", result_right)
+        self.assertIn("BrowRightY", result_right)
+        
+        # Test with no brow data
+        mediapipe_data_none = {
+            "blendshapes": {
+                "jawOpen": 0.5
+            }
+        }
+        result_none = transform_mediapipe_to_vtubestudio(mediapipe_data_none)
+        self.assertNotIn("BrowLeftY", result_none)
+        self.assertNotIn("BrowRightY", result_none)
+        self.assertNotIn("BrowInnerUp", result_none)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -193,6 +193,29 @@ def transform_mediapipe_to_vtubestudio(mediapipe_data: Dict[str, Any]) -> Dict[s
             smile_value = 0.5 + (happy_value * 0.5)
             vtube_params["MouthSmile"] = max(0.0, min(1.0, smile_value))
 
+        # Enhanced individual brow tracking
+        # Calculate BrowLeftY using browDownLeft and browOuterUpLeft
+        if "browDownLeft" in blendshapes and "browOuterUpLeft" in blendshapes:
+            # Normalize values to [-1, 1] range
+            down_left = 2 * blendshapes["browDownLeft"] - 1
+            up_left = 2 * blendshapes["browOuterUpLeft"] - 1
+            # Combine: up adds, down subtracts
+            brow_left_y = (up_left - down_left) / 2  # [-1, 1]
+            # Convert to [0, 1] range with clamping
+            brow_left_y = max(0.0, min(1.0, (brow_left_y + 1) / 2))
+            vtube_params["BrowLeftY"] = brow_left_y
+
+        # Calculate BrowRightY using browDownRight and browOuterUpRight
+        if "browDownRight" in blendshapes and "browOuterUpRight" in blendshapes:
+            # Normalize values to [-1, 1] range
+            down_right = 2 * blendshapes["browDownRight"] - 1
+            up_right = 2 * blendshapes["browOuterUpRight"] - 1
+            # Combine: up adds, down subtracts
+            brow_right_y = (up_right - down_right) / 2  # [-1, 1]
+            # Convert to [0, 1] range with clamping
+            brow_right_y = max(0.0, min(1.0, (brow_right_y + 1) / 2))
+            vtube_params["BrowRightY"] = brow_right_y
+
         if "browDownLeft" in blendshapes and "browDownRight" in blendshapes and "browInnerUp" in blendshapes:
             # Average lowering
             avg_brow_down = (blendshapes["browDownLeft"] + blendshapes["browDownRight"]) / 2.0

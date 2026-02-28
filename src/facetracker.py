@@ -28,13 +28,15 @@ class FaceTracker:
     """
 
     def __init__(self, model_path: str = "face_landmarker.task",
-                 enable_threading: bool = True, min_detection_confidence: float = 0.5):
+                 enable_threading: bool = True,
+                 min_detection_confidence: float = 0.5):
         """
         Initialize the face tracker.
 
         Args:
             model_path: Path to the MediaPipe face landmarker model.
-            enable_threading: Whether to enable threading for MediaPipe processing.
+            enable_threading: Whether to enable threading for
+                MediaPipe processing.
             min_detection_confidence: Minimum confidence for face detection.
         """
         # Use the new Tasks API correctly
@@ -59,8 +61,19 @@ class FaceTracker:
         self._prev_vtube_params = {}
         self._prev_fps = 30.0  # Assume 30 FPS initially
         self._last_time = 0.0  # Initialize for FPS calculation
+        
+        # Position calibration
+        self._calibration_position = None
+        self._is_calibrated = False
+        self._last_face_detected_time = 0.0
+        # Reset calibration if no face detected for 1 second
+        self._calibration_timeout = 1.0
 
-    def process_frame(self, frame: np.ndarray, draw_landmarks: bool = False) -> Tuple[Optional[Dict[str, Any]], np.ndarray]:
+    def process_frame(
+        self,
+        frame: np.ndarray,
+        draw_landmarks: bool = False
+    ) -> Tuple[Optional[Dict[str, Any]], np.ndarray]:
         """
         Process a video frame and extract face landmarks and blendshapes.
 
@@ -69,8 +82,9 @@ class FaceTracker:
             draw_landmarks: If True, draw landmarks on the frame for debugging.
 
         Returns:
-            Tuple of (face_data, output_frame) where face_data is None if no face detected,
-            and output_frame is the original frame or frame with landmarks drawn.
+            Tuple of (face_data, output_frame) where face_data is None
+            if no face detected, and output_frame is the original frame
+            or frame with landmarks drawn.
         """
         # Process frame directly without scaling
         processing_frame = frame
@@ -82,6 +96,23 @@ class FaceTracker:
         # Process frame with MediaPipe
         detection_result = self.detector.detect(image)
 
+        # Check if face is detected
+        face_detected = (
+            detection_result.face_landmarks is not None and
+            len(detection_result.face_landmarks) > 0
+        )
+        
+        # Update last face detected time
+        current_time = time.time()
+        if face_detected:
+            self._last_face_detected_time = current_time
+        else:
+            # Check if calibration should be reset due to timeout
+            time_since_last_face = current_time - self._last_face_detected_time
+            if (self._is_calibrated and
+                time_since_last_face > self._calibration_timeout):
+                self.reset_calibration()
+        
         if not detection_result.face_landmarks:
             if draw_landmarks:
                 return None, frame
@@ -89,13 +120,19 @@ class FaceTracker:
 
         # Use first (and only) detected face
         landmarks = detection_result.face_landmarks[0]
-        blendshapes = detection_result.face_blendshapes[0] if detection_result.face_blendshapes else None
-        transformation_matrix = detection_result.facial_transformation_matrixes[0] if detection_result.facial_transformation_matrixes else None
+        blendshapes = (
+            detection_result.face_blendshapes[0]
+            if detection_result.face_blendshapes else None)
+        transformation_matrix = (
+            detection_result.facial_transformation_matrixes[0]
+            if detection_result.facial_transformation_matrixes else None)
 
         # Landmarks are normalized coordinates (0-1), no scaling needed
 
-        # Extract head pose from transformation matrix
-        pose = self._extract_pose(transformation_matrix) if transformation_matrix is not None else None
+        # Extract head pose and position from transformation matrix
+        pose = (
+            self._extract_pose_and_position(transformation_matrix)
+            if transformation_matrix is not None else None)
 
         # Convert blendshapes to dictionary
         blendshapes_dict = {}
@@ -125,13 +162,24 @@ class FaceTracker:
         
         # Debug: Log raw parameters to verify data flow
         if 'FaceAngleX' in vtube_params:
-            logger.debug(f"Raw pose data - X: {vtube_params['FaceAngleX']:.2f}, Y: {vtube_params.get('FaceAngleY', 0):.2f}, Z: {vtube_params.get('FaceAngleZ', 0):.2f}")
+            logger.debug(
+                f"Raw pose data - X: {vtube_params['FaceAngleX']:.2f}, "
+                f"Y: {vtube_params.get('FaceAngleY', 0):.2f}, "
+                f"Z: {vtube_params.get('FaceAngleZ', 0):.2f}")
+        if 'FacePositionX' in vtube_params:
+            logger.debug(
+                f"Raw position data - X: {vtube_params['FacePositionX']:.2f}, "
+                f"Y: {vtube_params.get('FacePositionY', 0):.2f}, "
+                f"Z: {vtube_params.get('FacePositionZ', 0):.2f}")
         if 'MouthOpen' in vtube_params:
             logger.debug(f"Raw mouth open: {vtube_params['MouthOpen']:.2f}")
         if 'EyeOpenLeft' in vtube_params:
-            logger.debug(f"Raw eye openness - Left: {vtube_params['EyeOpenLeft']:.2f}, Right: {vtube_params.get('EyeOpenRight', 0):.2f}")
+            logger.debug(
+                f"Raw eye openness - Left: {vtube_params['EyeOpenLeft']:.2f}, "
+                f"Right: {vtube_params.get('EyeOpenRight', 0):.2f}")
         
-        # VTube Studio handles smoothing internally, pass through parameters directly
+        # VTube Studio handles smoothing internally,
+        # pass through parameters directly
         output_params = vtube_params.copy()
 
         # Update previous values for parameter continuity
@@ -147,7 +195,8 @@ class FaceTracker:
         # Draw landmarks if requested
         output_frame = frame.copy()
         if draw_landmarks:
-            debug_frame = output_frame  # Use the already copied frame for drawing
+            debug_frame = output_frame  # Use the already copied frame
+            # for drawing
             # Draw all landmarks
             for i, landmark in enumerate(landmarks):
                 h, w = frame.shape[:2]
@@ -166,8 +215,9 @@ class FaceTracker:
                 # Fallback to manual connections
                 face_connections = [
                     # Jawline
-                    (0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 6), (6, 7), (7, 8), (8, 9),
-                    (9, 10), (10, 11), (11, 12), (12, 13), (13, 14), (14, 15), (15, 16), (16, 17),
+                    (0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 6), (6, 7),
+                    (7, 8), (8, 9), (9, 10), (10, 11), (11, 12), (12, 13),
+                    (13, 14), (14, 15), (15, 16), (16, 17),
                     # Left eyebrow
                     (17, 18), (18, 19), (19, 20), (20, 21),
                     # Right eyebrow
@@ -191,9 +241,9 @@ class FaceTracker:
 
             # Add text overlay
             cv2.putText(debug_frame, "Face Tracking Debug View", (10, 30),
-                       cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
             cv2.putText(debug_frame, f"FPS: {current_fps:.1f}", (10, 70),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             
             output_frame = debug_frame
 
@@ -208,23 +258,82 @@ class FaceTracker:
             fps = 0.0
         self._last_time = now
         return fps
-
-    def _extract_pose(self, matrix: np.ndarray) -> Dict[str, float]:
+    
+    def calibrate_position(self, position: Dict[str, float]) -> None:
         """
-        Extract pitch, yaw, roll from transformation matrix.
+        Calibrate the initial position as the neutral position.
+        
+        Args:
+            position: Dictionary with position_x, position_y,
+                position_z values.
+        """
+        self._calibration_position = {
+            "position_x": position["position_x"],
+            "position_y": position["position_y"],
+            "position_z": position["position_z"]
+        }
+        self._is_calibrated = True
+    
+    def reset_calibration(self) -> None:
+        """
+        Reset the position calibration.
+        """
+        self._calibration_position = None
+        self._is_calibrated = False
+    
+    def _apply_position_calibration(
+        self,
+        position: Dict[str, float]
+    ) -> Dict[str, float]:
+        """
+        Apply calibration to position data to make it relative to the
+        initial position.
+        
+        Args:
+            position: Dictionary with position_x, position_y, position_z values.
+            
+        Returns:
+            Dictionary with calibrated position values.
+        """
+        if not self._is_calibrated or self._calibration_position is None:
+            # If not calibrated yet, use current position as calibration
+            self.calibrate_position(position)
+            return {"position_x": 0.0, "position_y": 0.0, "position_z": 0.0}
+        
+        # Calculate relative position
+        calibrated_position = {}
+        for axis in ["position_x", "position_y", "position_z"]:
+            calibrated_position[axis] = (
+                position[axis] - self._calibration_position[axis])
+        
+        return calibrated_position
+
+    def _extract_pose_and_position(
+        self,
+        matrix: np.ndarray
+    ) -> Dict[str, float]:
+        """
+        Extract pitch, yaw, roll and position (x, y, z) from
+        transformation matrix.
 
         Args:
             matrix: 4x4 transformation matrix.
 
         Returns:
-            Dictionary with pitch, yaw, roll in degrees.
+            Dictionary with pitch, yaw, roll in degrees and position x, y, z.
         """
         # Extract rotation matrix (3x3) from 4x4 matrix
         rot_matrix = matrix[:3, :3]
+        
+        # Extract translation vector (x, y, z) from 4x4 matrix
+        translation = matrix[:3, 3]
 
-        # Convert rotation matrix to Euler angles using proper convention for MediaPipe
+        # Convert rotation matrix to Euler angles using proper
+        # convention for MediaPipe
         # Using XYZ convention (Tait-Bryan angles)
-        sy = np.sqrt(rot_matrix[0, 0] * rot_matrix[0, 0] + rot_matrix[1, 0] * rot_matrix[1, 0])
+        sy = np.sqrt(
+            rot_matrix[0, 0] * rot_matrix[0, 0] +
+            rot_matrix[1, 0] * rot_matrix[1, 0])
         singular = sy < 1e-6
 
         if not singular:
@@ -257,9 +366,37 @@ class FaceTracker:
         vts_pitch = yaw      # MediaPipe Y -> VTube Studio X (inverted)
         vts_yaw = -pitch       # MediaPipe X -> VTube Studio Y
         vts_roll = -roll      # MediaPipe Z -> VTube Studio Z (inverted)
+        
+        # Extract position components
+        pos_x = float(translation[0])  # MediaPipe X (right)
+        pos_y = float(translation[1])  # MediaPipe Y (down)
+        pos_z = float(translation[2])  # MediaPipe Z (forward)
+        
+        # Apply coordinate system mapping for VTube Studio position
+        # For position, we need to map:
+        # MediaPipe X (right) -> VTube Studio Y (left/right) with inversion
+        # MediaPipe Y (down) -> VTube Studio X (up/down) with inversion
+        # MediaPipe Z (forward) -> VTube Studio Z (forward/backward)
+        # with inversion
+        vts_pos_x = -pos_y    # MediaPipe Y -> VTube Studio X (inverted)
+        vts_pos_y = -pos_x    # MediaPipe X -> VTube Studio Y (inverted)
+        vts_pos_z = -pos_z    # MediaPipe Z -> VTube Studio Z (inverted)
 
+        # Create position dictionary
+        position = {
+            "position_x": vts_pos_x,      # Left/right position
+            "position_y": vts_pos_y,      # Up/down position
+            "position_z": vts_pos_z       # Forward/backward position
+        }
+        
+        # Apply calibration to make position relative to initial position
+        calibrated_position = self._apply_position_calibration(position)
+        
         return {
             "pitch": float(vts_pitch),  # Up/down head movement
             "yaw": float(vts_yaw),       # Left/right head movement
-            "roll": float(vts_roll)       # Head tilt
+            "roll": float(vts_roll),       # Head tilt
+            "position_x": calibrated_position["position_x"],  # Left/right
+            "position_y": calibrated_position["position_y"],  # Up/down
+            "position_z": calibrated_position["position_z"]   # Forward/back
         }

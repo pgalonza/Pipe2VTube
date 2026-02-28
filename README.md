@@ -9,9 +9,9 @@ The project implements a plugin for VTube Studio that integrates MediaPipe via W
 
 ## Key Features
 
-- [ ] FacePositionX
-- [ ] FacePositionY
-- [ ] FacePositionZ
+- [x] FacePositionX
+- [x] FacePositionY
+- [x] FacePositionZ
 - [x] FaceAngleX
 - [x] FaceAngleY
 - [x] FaceAngleZ

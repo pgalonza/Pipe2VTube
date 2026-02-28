@@ -122,6 +122,13 @@ POSE_MAPPING: Dict[str, str] = {
     "roll": "FaceAngleZ"    # Head tilt (rotation around Z-axis)
 }
 
+# Head position mapping from MediaPipe to VTube Studio
+POSITION_MAPPING: Dict[str, str] = {
+    "position_x": "FacePositionX",  # Left/right position
+    "position_y": "FacePositionY",  # Up/down position
+    "position_z": "FacePositionZ"   # Forward/backward position
+}
+
 
 def transform_mediapipe_to_vtubestudio(mediapipe_data: Dict[str, Any]) -> Dict[str, float]:
     """
@@ -139,7 +146,7 @@ def transform_mediapipe_to_vtubestudio(mediapipe_data: Dict[str, Any]) -> Dict[s
 
     vtube_params = {}
 
-    # Handle pose data (head rotation)
+    # Handle pose data (head rotation and position)
     if "pose" in mediapipe_data and mediapipe_data["pose"] is not None:
         pose = mediapipe_data["pose"]
         if not isinstance(pose, dict):
@@ -148,6 +155,13 @@ def transform_mediapipe_to_vtubestudio(mediapipe_data: Dict[str, Any]) -> Dict[s
 
         # Map pitch, yaw, roll to VTube Studio input parameters
         for axis, param_id in POSE_MAPPING.items():
+            if axis in pose:
+                value = float(pose[axis])
+                # No clamping needed - handled by VTube Studio client
+                vtube_params[param_id] = value
+
+        # Map position_x, position_y, position_z to VTube Studio input parameters
+        for axis, param_id in POSITION_MAPPING.items():
             if axis in pose:
                 value = float(pose[axis])
                 # No clamping needed - handled by VTube Studio client

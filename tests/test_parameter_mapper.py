@@ -107,8 +107,8 @@ class TestParameterMapper(unittest.TestCase):
         self.assertIn("BrowRightY", result)
         self.assertIn("BrowInnerUp", result)
         
-        # Check that the old combined Brows parameter is not present
-        self.assertNotIn("Brows", result)
+        # Check that the combined Brows parameter is present
+        self.assertIn("Brows", result)
         
         # Check value ranges (should be clamped to [0, 1])
         self.assertGreaterEqual(result["BrowLeftY"], 0.0)

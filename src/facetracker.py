@@ -19,6 +19,10 @@ from src.parameter_mapper import transform_mediapipe_to_vtubestudio
 # Import the calibrator instance from the new eye_calibrator module
 from src.eye_calibrator import calibrator
 
+# Import the position calibrator instance from the new
+# position_calibrator module
+from src.position_calibrator import position_calibrator
+
 logger = logging.getLogger(__name__)
 
 
@@ -62,13 +66,6 @@ class FaceTracker:
         self._prev_fps = 30.0  # Assume 30 FPS initially
         self._last_time = 0.0  # Initialize for FPS calculation
         
-        # Position calibration
-        self._calibration_position = None
-        self._is_calibrated = False
-        self._last_face_detected_time = 0.0
-        # Reset calibration if no face detected for 1 second
-        self._calibration_timeout = 1.0
-
     def process_frame(
         self,
         frame: np.ndarray,
@@ -105,13 +102,10 @@ class FaceTracker:
         # Update last face detected time
         current_time = time.time()
         if face_detected:
-            self._last_face_detected_time = current_time
+            position_calibrator.update_last_face_time(current_time)
         else:
             # Check if calibration should be reset due to timeout
-            time_since_last_face = current_time - self._last_face_detected_time
-            if (self._is_calibrated and
-                time_since_last_face > self._calibration_timeout):
-                self.reset_calibration()
+            position_calibrator.check_calibration_timeout(current_time)
         
         if not detection_result.face_landmarks:
             if draw_landmarks:
@@ -237,8 +231,6 @@ class FaceTracker:
                     (54, 55), (55, 56), (56, 57), (57, 58), (58, 59), (59, 48),
                 ]
             
-
-
             # Add text overlay
             cv2.putText(debug_frame, "Face Tracking Debug View", (10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
@@ -259,55 +251,6 @@ class FaceTracker:
         self._last_time = now
         return fps
     
-    def calibrate_position(self, position: Dict[str, float]) -> None:
-        """
-        Calibrate the initial position as the neutral position.
-        
-        Args:
-            position: Dictionary with position_x, position_y,
-                position_z values.
-        """
-        self._calibration_position = {
-            "position_x": position["position_x"],
-            "position_y": position["position_y"],
-            "position_z": position["position_z"]
-        }
-        self._is_calibrated = True
-    
-    def reset_calibration(self) -> None:
-        """
-        Reset the position calibration.
-        """
-        self._calibration_position = None
-        self._is_calibrated = False
-    
-    def _apply_position_calibration(
-        self,
-        position: Dict[str, float]
-    ) -> Dict[str, float]:
-        """
-        Apply calibration to position data to make it relative to the
-        initial position.
-        
-        Args:
-            position: Dictionary with position_x, position_y, position_z values.
-            
-        Returns:
-            Dictionary with calibrated position values.
-        """
-        if not self._is_calibrated or self._calibration_position is None:
-            # If not calibrated yet, use current position as calibration
-            self.calibrate_position(position)
-            return {"position_x": 0.0, "position_y": 0.0, "position_z": 0.0}
-        
-        # Calculate relative position
-        calibrated_position = {}
-        for axis in ["position_x", "position_y", "position_z"]:
-            calibrated_position[axis] = (
-                position[axis] - self._calibration_position[axis])
-        
-        return calibrated_position
-
     def _extract_pose_and_position(
         self,
         matrix: np.ndarray
@@ -390,7 +333,7 @@ class FaceTracker:
         }
         
         # Apply calibration to make position relative to initial position
-        calibrated_position = self._apply_position_calibration(position)
+        calibrated_position = position_calibrator.apply_calibration(position)
         
         return {
             "pitch": float(vts_pitch),  # Up/down head movement

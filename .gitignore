@@ -3,5 +3,6 @@ vitube-studio-docs
 live2d-docs
 face_landmarker.task
 vtube_auth_token.json
+position_calibration.json
 eye_calibration.json
 __pycache__

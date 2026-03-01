@@ -153,6 +153,54 @@ class TestParameterMapper(unittest.TestCase):
         self.assertNotIn("BrowRightY", result_none)
         self.assertNotIn("BrowInnerUp", result_none)
 
+    def test_mouth_x_calculation(self):
+        """Test MouthX calculation from mouthLeft and mouthRight blendshapes."""
+        # Test case 1: Mouth centered (both left and right values are equal)
+        mediapipe_data_center = {
+            "blendshapes": {
+                "mouthLeft": 0.3,
+                "mouthRight": 0.3
+            }
+        }
+        result_center = transform_mediapipe_to_vtubestudio(mediapipe_data_center)
+        self.assertIn("MouthX", result_center)
+        # When left and right are equal, MouthX should be 0.5 (center)
+        self.assertAlmostEqual(result_center["MouthX"], 0.5, places=3)
+
+        # Test case 2: Mouth moved to the right
+        mediapipe_data_right = {
+            "blendshapes": {
+                "mouthLeft": 0.1,
+                "mouthRight": 0.7
+            }
+        }
+        result_right = transform_mediapipe_to_vtubestudio(mediapipe_data_right)
+        self.assertIn("MouthX", result_right)
+        # MouthX should be > 0.5 when mouth is moved to the right
+        self.assertGreater(result_right["MouthX"], 0.5)
+
+        # Test case 3: Mouth moved to the left
+        mediapipe_data_left = {
+            "blendshapes": {
+                "mouthLeft": 0.7,
+                "mouthRight": 0.1
+            }
+        }
+        result_left = transform_mediapipe_to_vtubestudio(mediapipe_data_left)
+        self.assertIn("MouthX", result_left)
+        # MouthX should be < 0.5 when mouth is moved to the left
+        self.assertLess(result_left["MouthX"], 0.5)
+
+        # Test case 4: Missing blendshapes (should not crash)
+        mediapipe_data_missing = {
+            "blendshapes": {
+                "jawOpen": 0.5
+            }
+        }
+        result_missing = transform_mediapipe_to_vtubestudio(mediapipe_data_missing)
+        # MouthX should not be present when blendshapes are missing
+        self.assertNotIn("MouthX", result_missing)
+
 
 if __name__ == "__main__":
     unittest.main()

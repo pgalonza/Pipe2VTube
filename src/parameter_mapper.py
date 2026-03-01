@@ -7,6 +7,7 @@ Features:
 - Calculates eye openness from facial landmarks for more accurate blinking and eye control
 - Handles custom parameters with proper type conversion
 - Logs debug information for eye openness values
+- Calculates MouthX parameter for horizontal mouth movement
 """
 
 from typing import Dict, Any, Set
@@ -249,6 +250,24 @@ def transform_mediapipe_to_vtubestudio(mediapipe_data: Dict[str, Any]) -> Dict[s
             brow_expression_score = max(0.0, min(brow_expression_score, 1.0))
 
             vtube_params["Brows"] = brow_expression_score
+
+        # Calculate MouthX parameter from mouthLeft and mouthRight blendshapes
+        # MouthX represents horizontal mouth movement (left/right)
+        # 0.0 = full left, 0.5 = center, 1.0 = full right
+        # Uses MediaPipe blendshapes mouthLeft and mouthRight
+        # Formula: MouthX = 0.5 + (mouthRight - mouthLeft) * 0.5
+        # This maps MediaPipe range [-1,1] to VTube Studio range [0,1]
+        if "mouthLeft" in blendshapes and "mouthRight" in blendshapes:
+            mouth_left = float(blendshapes["mouthLeft"])
+            mouth_right = float(blendshapes["mouthRight"])
+            # Calculate MouthX: 0.5 + (mouthRight - mouthLeft) * 0.5
+            # This maps MediaPipe range [-1,1] to VTube Studio range [0,1]
+            mouth_x = 0.5 + (mouth_right - mouth_left) * 0.5
+            # Clamp to valid range [0, 1]
+            mouth_x = max(0.0, min(1.0, mouth_x))
+            vtube_params["MouthX"] = mouth_x
+            # Debug logging
+            logger.debug(f"MouthX calculated: left={mouth_left:.3f}, right={mouth_right:.3f}, result={mouth_x:.3f}")
 
         # Map other blendshapes to VTube Studio parameters
         for bs_name, bs_score in blendshapes.items():

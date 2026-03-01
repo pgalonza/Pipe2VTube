@@ -21,11 +21,12 @@ To ensure stable operation of the face tracking system and data transmission to 
 
 ## Enhancement Requirements
 
-1. **Integration with VTube Studio**  
+1. **Integration with VTube Studio**
    - Transmit to API:
      - head rotation angles;
      - parameters for facial expressions, eyes, mouth, eyebrows;
      - additional events via VTube Studio Event API.
+   - Implemented MouthX parameter for horizontal mouth movement tracking
    - Conversion of parameters from MediaPipe to VTube Studio:
      - Parameters used in VTube Studio should be transmitted as standard parameters.
      - Other parameters, such as MediaPipe, should be transmitted as additional (custom) parameters.

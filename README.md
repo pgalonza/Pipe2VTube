@@ -30,7 +30,7 @@ The project implements a plugin for VTube Studio that integrates MediaPipe via W
 - [x] CheekPuff
 - [x] BrowLeftY
 - [x] BrowRightY
-- [ ] MouthX
+- [x] MouthX
 - [ ] FaceAngry
 
 ## Prerequisites

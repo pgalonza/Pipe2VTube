@@ -20,7 +20,7 @@ The project implements a plugin for VTube Studio that integrates MediaPipe via W
 - [x] Brows
 - [ ] MousePositionX
 - [ ] MousePositionY
-- [ ] TongueOut
+- [x] TongueOut
 - [x] EyeOpenLeft
 - [x] EyeOpenRight
 - [x] EyeLeftX

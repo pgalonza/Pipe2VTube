@@ -201,6 +201,48 @@ class TestParameterMapper(unittest.TestCase):
         # MouthX should not be present when blendshapes are missing
         self.assertNotIn("MouthX", result_missing)
 
+    def test_tongue_out_mapping(self):
+        """Test TongueOut parameter mapping from MediaPipe blendshapes."""
+        # Test case 1: Tongue fully out
+        mediapipe_data_full = {
+            "blendshapes": {
+                "tongueOut": 1.0
+            }
+        }
+        result_full = transform_mediapipe_to_vtubestudio(mediapipe_data_full)
+        self.assertIn("TongueOut", result_full)
+        self.assertAlmostEqual(result_full["TongueOut"], 1.0)
+
+        # Test case 2: Tongue partially out
+        mediapipe_data_partial = {
+            "blendshapes": {
+                "tongueOut": 0.5
+            }
+        }
+        result_partial = transform_mediapipe_to_vtubestudio(mediapipe_data_partial)
+        self.assertIn("TongueOut", result_partial)
+        self.assertAlmostEqual(result_partial["TongueOut"], 0.5)
+
+        # Test case 3: Tongue retracted
+        mediapipe_data_retracted = {
+            "blendshapes": {
+                "tongueOut": 0.0
+            }
+        }
+        result_retracted = transform_mediapipe_to_vtubestudio(mediapipe_data_retracted)
+        self.assertIn("TongueOut", result_retracted)
+        self.assertAlmostEqual(result_retracted["TongueOut"], 0.0)
+
+        # Test case 4: Missing tongue blendshape
+        mediapipe_data_missing = {
+            "blendshapes": {
+                "jawOpen": 0.5
+            }
+        }
+        result_missing = transform_mediapipe_to_vtubestudio(mediapipe_data_missing)
+        # TongueOut should not be present when blendshape is missing
+        self.assertNotIn("TongueOut", result_missing)
+
 
 if __name__ == "__main__":
     unittest.main()

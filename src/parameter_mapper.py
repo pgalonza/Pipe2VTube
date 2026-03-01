@@ -113,7 +113,10 @@ MEDIPIPE_TO_VTUBE: Dict[str, str] = {
     # Jaw
     "jawLeft": "JawLeft",
     "jawRight": "JawRight",
-    "jawForward": "JawForward"
+    "jawForward": "JawForward",
+    
+    # Tongue
+    "tongueOut": "TongueOut"
 }
 
 # Head pose mapping from MediaPipe to VTube Studio
@@ -186,6 +189,8 @@ def transform_mediapipe_to_vtubestudio(mediapipe_data: Dict[str, Any]) -> Dict[s
             logger.debug(f"Raw eye blink left: {blendshapes['eyeBlinkLeft']:.3f}")
         if "eyeBlinkRight" in blendshapes:
             logger.debug(f"Raw eye blink right: {blendshapes['eyeBlinkRight']:.3f}")
+        if "tongueOut" in blendshapes:
+            logger.debug(f"Raw tongue out: {blendshapes['tongueOut']:.3f}")
         
         # Calculate unified MouthSmile as average of left and right
         if "mouthSmileLeft" in blendshapes and "mouthSmileRight" in blendshapes:

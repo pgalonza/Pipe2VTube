@@ -1,0 +1,19 @@
+name: Build jobs
+
+on:
+  workflow_call:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: python:3.14.2-slim
+    steps:
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Sync
+        run: uv sync --no-python-downloads --extra ci
+      - name: Unit tests
+        run: uv run python -m unittest discover -s tests -v
+

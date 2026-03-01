@@ -55,7 +55,7 @@ curl -O https://storage.googleapis.com/mediapipe-models/face_landmarker/face_lan
 
 3. Install dependencies:
 ```bash
-uv sync
+uv sync --extra ui
 ```
 
 ## Usage

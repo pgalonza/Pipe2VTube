@@ -1,0 +1,12 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - 'Dockerfile'
+
+jobs:
+  build-workflow:
+    uses: ./.github/workflows/build-jobs.yaml

@@ -238,7 +238,7 @@ Camera Input → Face Tracking → Parameter Mapping → VTube Studio API
 1. Install Python 3.14+
 2. Install uv package manager
 3. Clone the repository
-4. Install dependencies with `uv sync`
+4. Install dependencies with `uv sync --extra ui`
 5. Download FaceLandmarker model
 6. Install VTube Studio and enable API access
 

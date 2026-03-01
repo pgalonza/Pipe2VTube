@@ -105,7 +105,9 @@ class FaceTracker:
             position_calibrator.update_last_face_time(current_time)
         else:
             # Check if calibration should be reset due to timeout
-            position_calibrator.check_calibration_timeout(current_time)
+            # Use extended timeout for temporary face loss (e.g., blinking)
+            position_calibrator.check_calibration_timeout(
+                current_time, extended_timeout=2.0)
         
         if not detection_result.face_landmarks:
             if draw_landmarks:

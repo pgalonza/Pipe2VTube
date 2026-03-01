@@ -259,7 +259,7 @@ class EyeCalibrator:
         
     def detect_eye_state(self, landmarks: list) -> bool:
         """
-        Automatically detect if eyes are open or closed.
+        Automatically detect if eyes are open or closed with hysteresis.
         
         Args:
             landmarks: List of face landmarks from MediaPipe.
@@ -281,8 +281,19 @@ class EyeCalibrator:
         # Average both eyes
         avg_openness = (left_normalized + right_normalized) / 2.0
         
-        # Consider eyes open if average openness > 0.5
-        return avg_openness > 0.5
+        # Add hysteresis to prevent rapid state changes during blinking
+        if hasattr(self, '_last_eye_state'):
+            if self._last_eye_state and avg_openness < 0.3:  # Transition to closed
+                eye_state = False
+            elif not self._last_eye_state and avg_openness > 0.7:  # Transition to open
+                eye_state = True
+            else:
+                eye_state = self._last_eye_state
+        else:
+            eye_state = avg_openness > 0.5
+        
+        self._last_eye_state = eye_state
+        return eye_state
         
     def is_eye_state_stable(self, current_state: bool, window_size: int = 10) -> bool:
         """

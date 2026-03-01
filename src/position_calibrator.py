@@ -96,12 +96,14 @@ class PositionCalibrator:
         """
         self._last_face_detected_time = current_time
     
-    def check_calibration_timeout(self, current_time: float) -> bool:
+    def check_calibration_timeout(self, current_time: float,
+                                     extended_timeout: float = None) -> bool:
         """
         Check if calibration should be reset due to timeout.
         
         Args:
             current_time: Current time in seconds.
+            extended_timeout: Extended timeout for temporary face loss
             
         Returns:
             True if calibration was reset, False otherwise.
@@ -109,8 +111,10 @@ class PositionCalibrator:
         if not self._is_calibrated:
             return False
             
+        timeout = (extended_timeout if extended_timeout is not None
+                   else self._calibration_timeout)
         time_since_last_face = current_time - self._last_face_detected_time
-        if time_since_last_face > self._calibration_timeout:
+        if time_since_last_face > timeout:
             self.reset_calibration()
             return True
         return False
